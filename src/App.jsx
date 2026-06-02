@@ -3,11 +3,16 @@ import Camera from './components/Camera'
 import PlayerPanel from './components/PlayerPanel'
 import Countdown from './components/Countdown'
 import ResultOverlay from './components/ResultOverlay'
-import PenaltyOverlay from './components/PenaltyOverlay'
+import CatchRainOverlay from './components/tiebreakers/CatchRainOverlay'
+import GameShell from './components/GameShell'
+import GameHeader, { HeaderButton } from './components/GameHeader'
+import { HeroHands } from './components/decor/FloatingHands'
 import { useRpsDetection } from './hooks/useRpsDetection'
 import { useHolisticPenalty } from './hooks/useHolisticPenalty'
 import { useGameFlow, PHASE } from './hooks/useGameFlow'
-import { usePenaltyGame } from './hooks/usePenaltyGame'
+import { useCatchRainGame } from './hooks/useCatchRainGame'
+import { getTieBreaker } from './tiebreakers/registry'
+import { cazaSobresTieBreaker } from './tiebreakers/cazaSobres'
 import { bothHandsDetected, createPlayerLock } from './utils/assignPlayers'
 
 function NameSetup({ onStart }) {
@@ -15,52 +20,70 @@ function NameSetup({ onStart }) {
   const [p2, setP2] = useState('Jugador 2')
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-8 p-6">
-      <div className="text-center">
-        <h1 className="text-4xl font-black tracking-tight text-white">
-          Piedra, Papel o Tijera
-        </h1>
-        <p className="mt-2 text-slate-400">
-          Dos personas frente a la misma cámara · Mano izquierda vs mano derecha
+    <GameShell className="items-center justify-center px-4 py-10">
+      <div className="relative z-10 w-full max-w-lg">
+        <HeroHands />
+
+        <div className="card-sticker mt-2 p-8 sm:p-10">
+          <p className="text-center font-display text-sm font-semibold uppercase tracking-[0.2em] text-[var(--coral)]">
+            Salón de juegos
+          </p>
+          <h1 className="mt-2 text-center font-display text-4xl font-bold leading-[1.05] text-[var(--ink)] sm:text-5xl">
+            Piedra, Papel
+            <br />
+            <span className="text-[var(--p1)]">o</span>{' '}
+            <span className="text-[var(--p2)]">Tijera</span>
+          </h1>
+          <p className="mx-auto mt-4 max-w-sm text-center text-base font-semibold leading-relaxed text-[var(--ink-soft)]">
+            Dos jugadores, una cámara. Izquierda contra derecha — ¡sin trampas!
+          </p>
+
+          <div className="mt-8 flex flex-col gap-4">
+            <label className="flex flex-col gap-1.5">
+              <span className="font-display text-sm font-bold text-[var(--p1)]">
+                Jugador 1 · lado izquierdo
+              </span>
+              <input
+                type="text"
+                value={p1}
+                onChange={(e) => setP1(e.target.value)}
+                className="input-play"
+                maxLength={20}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="font-display text-sm font-bold text-[var(--p2)]">
+                Jugador 2 · lado derecho
+              </span>
+              <input
+                type="text"
+                value={p2}
+                onChange={(e) => setP2(e.target.value)}
+                className="input-play input-play--p2"
+                maxLength={20}
+              />
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              onStart({
+                player1: p1.trim() || 'Jugador 1',
+                player2: p2.trim() || 'Jugador 2',
+              })
+            }
+            className="btn-play btn-play--primary mt-8 w-full py-3.5"
+          >
+            ¡A jugar!
+          </button>
+        </div>
+
+        <p className="mt-6 text-center text-sm font-semibold text-[var(--ink-soft)]">
+          Necesitas cámara web · colocaos frente al monitor, uno a cada lado
         </p>
       </div>
-
-      <div className="flex w-full max-w-md flex-col gap-4">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-blue-400">Jugador 1 (izquierda)</span>
-          <input
-            type="text"
-            value={p1}
-            onChange={(e) => setP1(e.target.value)}
-            className="rounded-lg border border-blue-500/50 bg-slate-800 px-4 py-2 text-white outline-none focus:ring-2 focus:ring-blue-500"
-            maxLength={20}
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-red-400">Jugador 2 (derecha)</span>
-          <input
-            type="text"
-            value={p2}
-            onChange={(e) => setP2(e.target.value)}
-            className="rounded-lg border border-red-500/50 bg-slate-800 px-4 py-2 text-white outline-none focus:ring-2 focus:ring-red-500"
-            maxLength={20}
-          />
-        </label>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => onStart({ player1: p1.trim() || 'Jugador 1', player2: p2.trim() || 'Jugador 2' })}
-        className="rounded-xl bg-emerald-500 px-10 py-3 text-lg font-bold text-slate-900 transition hover:bg-emerald-400"
-      >
-        Empezar juego
-      </button>
-
-      <p className="max-w-md text-center text-xs text-slate-500">
-        Necesitas permitir acceso a la cámara. Colócate frente al monitor: una
-        persona a la izquierda y otra a la derecha del encuadre.
-      </p>
-    </div>
+    </GameShell>
   )
 }
 
@@ -69,8 +92,12 @@ function Game({ names, onBack }) {
   const playerLockRef = useRef(null)
   const frozenCanvasRef = useRef(null)
   const [frozenFrame, setFrozenFrame] = useState(null)
-  const [penaltyActive, setPenaltyActive] = useState(false)
-  const [penaltyResult, setPenaltyResult] = useState(null)
+  const [tieBreakerId, setTieBreakerId] = useState(null)
+  const [tieBreakerResult, setTieBreakerResult] = useState(null)
+
+  const tieBreaker = tieBreakerId ? getTieBreaker(tieBreakerId) : null
+  const tieBreakerActive = Boolean(tieBreaker?.gameConfig)
+  const catchConfig = tieBreaker?.gameConfig ?? cazaSobresTieBreaker.gameConfig
 
   const captureFrame = useCallback(() => {
     const video = videoRef.current
@@ -103,20 +130,27 @@ function Game({ names, onBack }) {
   const {
     ready: holisticReady,
     error: holisticError,
-    detection: penaltyDetection,
+    detection: holisticDetection,
   } = useHolisticPenalty(videoRef, {
-    enabled: penaltyActive,
+    enabled: tieBreakerActive && tieBreaker?.requiresHandTracking,
     playerLockRef,
   })
 
-  const ready = penaltyActive ? (holisticReady && rpsReady) : rpsReady
-  const error = penaltyActive ? (holisticError || rpsError) : rpsError
-  const detection = penaltyActive 
+  const ready =
+    tieBreakerActive && tieBreaker?.requiresHandTracking
+      ? holisticReady && rpsReady
+      : rpsReady
+  const error =
+    tieBreakerActive && tieBreaker?.requiresHandTracking
+      ? holisticError || rpsError
+      : rpsError
+
+  const detection = tieBreakerActive
     ? {
-        ...penaltyDetection,
-        player1: rpsDetection.player1 || penaltyDetection.player1,
-        player2: rpsDetection.player2 || penaltyDetection.player2,
-      } 
+        ...holisticDetection,
+        player1: rpsDetection.player1 || holisticDetection.player1,
+        player2: rpsDetection.player2 || holisticDetection.player2,
+      }
     : rpsDetection
 
   const {
@@ -133,12 +167,12 @@ function Game({ names, onBack }) {
     onCaptureFrame: captureFrame,
     playerLockRef,
     resetStability,
-    paused: penaltyActive,
+    paused: tieBreakerActive,
   })
 
-  const handlePenaltyFinish = useCallback(
+  const handleTieBreakerFinish = useCallback(
     (result) => {
-      setPenaltyResult(result)
+      setTieBreakerResult(result)
       if (result.winner !== 'tie') {
         awardPenaltyWinner(result.winner)
       }
@@ -147,92 +181,82 @@ function Game({ names, onBack }) {
   )
 
   const {
-    timeLeft: penaltyTime,
-    scores: billeteScores,
-    bills,
-    status: penaltyStatus,
-    billSize,
-  } = usePenaltyGame({
-    active: penaltyActive,
+    timeLeft: tieTimeLeft,
+    scores: catchScores,
+    items: catchItems,
+    status: tieStatus,
+    itemSize,
+    scoreLabel,
+  } = useCatchRainGame({
+    active: tieBreakerActive,
     detection,
-    onFinish: handlePenaltyFinish,
+    config: catchConfig,
+    onFinish: handleTieBreakerFinish,
   })
 
   const handleNewRound = () => {
     setFrozenFrame(null)
-    setPenaltyActive(false)
-    setPenaltyResult(null)
+    setTieBreakerId(null)
+    setTieBreakerResult(null)
     newRound()
   }
 
-  const handleStartPenalty = () => {
+  const handleStartTieBreaker = (id) => {
+    const def = getTieBreaker(id)
+    if (!def?.implemented || !def.gameConfig) return
+
     setFrozenFrame(null)
-    setPenaltyResult(null)
+    setTieBreakerResult(null)
     if (detection.assignment) {
       playerLockRef.current = createPlayerLock(detection.assignment)
     }
-    setPenaltyActive(true)
+    setTieBreakerId(id)
   }
 
-  const handlePenaltyContinue = () => {
-    setPenaltyActive(false)
-    setPenaltyResult(null)
+  const handleTieBreakerContinue = () => {
+    setTieBreakerId(null)
+    setTieBreakerResult(null)
     newRound()
   }
 
   const frozen =
-    (phase === PHASE.RESULT || phase === PHASE.CAPTURE) && !penaltyActive
+    (phase === PHASE.RESULT || phase === PHASE.CAPTURE) && !tieBreakerActive
   const p1Detected = Boolean(detection.player1)
   const p2Detected = Boolean(detection.player2)
   const bothReady = detection.handsStable || bothHandsDetected(detection.assignment)
 
-  const displayGesture1 = penaltyActive
+  const displayGesture1 = tieBreakerActive
     ? null
     : phase === PHASE.RESULT
       ? roundResult?.gestures?.player1
       : detection.player1?.gesture
-  const displayGesture2 = penaltyActive
+  const displayGesture2 = tieBreakerActive
     ? null
     : phase === PHASE.RESULT
       ? roundResult?.gestures?.player2
       : detection.player2?.gesture
 
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-        <h1 className="text-lg font-bold text-white">Piedra · Papel · Tijera</h1>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={resetScores}
-            className="rounded-lg px-3 py-1 text-sm text-slate-400 hover:bg-slate-800 hover:text-white"
-          >
-            Reiniciar puntos
-          </button>
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-lg px-3 py-1 text-sm text-slate-400 hover:bg-slate-800 hover:text-white"
-          >
-            Cambiar nombres
-          </button>
-        </div>
-      </header>
+    <GameShell>
+      <GameHeader title="Piedra · Papel · Tijera">
+        <HeaderButton onClick={resetScores}>Reiniciar</HeaderButton>
+        <HeaderButton onClick={onBack}>Salir</HeaderButton>
+      </GameHeader>
 
       {!ready && !error && (
-        <p className="py-4 text-center text-slate-400 animate-pulse-ring">
-          {penaltyActive
-            ? 'Cargando MediaPipe Holistic (penitencia)…'
-            : 'Cargando modelo RPS (.task)…'}
+        <p className="relative z-10 py-4 text-center font-display font-semibold text-[var(--ink-soft)] animate-pulse-ring">
+          {tieBreakerActive
+            ? `Cargando ${tieBreaker?.title ?? 'desempate'}…`
+            : 'Preparando el detector de gestos…'}
         </p>
       )}
       {error && (
-        <p className="py-4 text-center text-red-400">
-          Error al cargar MediaPipe: {error}
+        <p className="relative z-10 py-4 text-center font-bold text-[var(--coral)]">
+          Error MediaPipe: {error}
         </p>
       )}
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-4 lg:flex-row lg:items-stretch lg:justify-center">
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center gap-5 p-4 lg:flex-row lg:items-stretch lg:p-6">
         <PlayerPanel
           side="left"
           name={names.player1}
@@ -240,68 +264,73 @@ function Game({ names, onBack }) {
           gesture={displayGesture1}
           score={scores.player1}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
-          penaltyMode={penaltyActive}
-          billetes={billeteScores.player1}
+          tieBreakerMode={tieBreakerActive}
+          tieBreakerScore={catchScores.player1}
+          tieBreakerScoreLabel={scoreLabel}
+          tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
 
-        <div className="relative flex flex-1 flex-col items-center justify-center">
+        <div className="relative flex w-full max-w-3xl flex-1 flex-col items-center justify-center pt-4">
           <Camera
             ref={videoRef}
             detection={detection}
-            phase={penaltyActive ? 'penalty' : phase}
+            phase={tieBreakerActive ? 'tiebreaker' : phase}
             frozen={frozen}
             frozenFrame={frozenFrame}
+            tieBreakerHint={tieBreaker?.bannerPlaying}
           />
 
-          <PenaltyOverlay
-            visible={penaltyActive}
-            status={penaltyStatus}
-            timeLeft={penaltyTime}
-            scores={billeteScores}
-            bills={bills}
-            billSize={billSize}
+          <CatchRainOverlay
+            visible={tieBreakerActive}
+            tieBreaker={tieBreaker}
+            status={tieStatus}
+            timeLeft={tieTimeLeft}
+            scores={catchScores}
+            items={catchItems}
+            itemSize={itemSize}
+            scoreLabel={scoreLabel}
             player1Name={names.player1}
             player2Name={names.player2}
-            penaltyResult={penaltyResult}
-            onContinue={handlePenaltyContinue}
+            finishResult={tieBreakerResult}
+            onContinue={handleTieBreakerContinue}
           />
 
           <Countdown
-            visible={phase === PHASE.COUNTDOWN && !penaltyActive}
+            visible={phase === PHASE.COUNTDOWN && !tieBreakerActive}
             label={countdownLabel}
             stabilityRatio={detection.stabilityRatio}
           />
 
           <ResultOverlay
-            visible={phase === PHASE.RESULT && !penaltyActive}
+            visible={phase === PHASE.RESULT && !tieBreakerActive}
             roundResult={roundResult}
             player1Name={names.player1}
             player2Name={names.player2}
             onNewRound={handleNewRound}
-            onStartPenalty={handleStartPenalty}
+            onStartTieBreaker={handleStartTieBreaker}
           />
 
-          {penaltyActive && penaltyStatus === 'playing' && (
-            <p className="mt-3 text-center text-sm font-bold text-amber-400">
-              Solo billetes: acerca la mano al billete para cogerlo
+          {tieBreakerActive && tieStatus === 'playing' && (
+            <p className="status-chip status-chip--wait mt-4">
+              {tieBreaker?.bannerPlaying}
             </p>
           )}
 
-          {phase === PHASE.WAITING && !penaltyActive && (
+          {phase === PHASE.WAITING && !tieBreakerActive && (
             <p
-              className={`mt-3 text-center text-sm font-medium ${
-                bothReady ? 'text-green-400' : 'text-amber-400'
+              className={`status-chip mt-4 ${
+                bothReady ? 'status-chip--ready' : 'status-chip--wait'
               }`}
             >
               {bothReady
-                ? '¡Ambas manos estables! Preparando cuenta atrás…'
-                : 'Coloca ambas manos quietas en tu zona (izq. / der.)…'}
+                ? '¡Manos listas! Cuenta atrás en breve…'
+                : 'Quietas en vuestra zona (izq. / der.)…'}
             </p>
           )}
 
-          {phase === PHASE.COUNTDOWN && !penaltyActive && (
-            <p className="mt-3 text-center text-sm font-medium text-slate-300">
-              Mantén las manos visibles · al &quot;¡YA!&quot; muestra piedra, papel o tijera
+          {phase === PHASE.COUNTDOWN && !tieBreakerActive && (
+            <p className="mt-4 text-center text-sm font-bold text-[var(--ink-soft)]">
+              Al «¡YA!» — piedra, papel o tijera
             </p>
           )}
         </div>
@@ -313,11 +342,13 @@ function Game({ names, onBack }) {
           gesture={displayGesture2}
           score={scores.player2}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
-          penaltyMode={penaltyActive}
-          billetes={billeteScores.player2}
+          tieBreakerMode={tieBreakerActive}
+          tieBreakerScore={catchScores.player2}
+          tieBreakerScoreLabel={scoreLabel}
+          tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
       </main>
-    </div>
+    </GameShell>
   )
 }
 
@@ -336,10 +367,5 @@ export default function App() {
     )
   }
 
-  return (
-    <Game
-      names={names}
-      onBack={() => setStarted(false)}
-    />
-  )
+  return <Game names={names} onBack={() => setStarted(false)} />
 }

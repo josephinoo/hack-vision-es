@@ -1,5 +1,27 @@
 @import 'tailwindcss';
 
+:root {
+  --cream: #fff8ed;
+  --cream-dark: #f3e6d3;
+  --ink: #2d3142;
+  --ink-soft: #4f5d75;
+  --p1: #4361ee;
+  --p1-light: #e8edff;
+  --p2: #f72585;
+  --p2-light: #ffe8f3;
+  --sun: #ffd166;
+  --sun-dark: #e8b84a;
+  --mint: #06d6a0;
+  --coral: #ff6b35;
+  --paper-line: rgba(45, 49, 66, 0.08);
+  --shadow-sticker: 5px 5px 0 var(--ink);
+  --shadow-soft: 0 12px 40px rgba(45, 49, 66, 0.12);
+  --font-display: 'Fredoka', system-ui, sans-serif;
+  --font-body: 'Nunito', system-ui, sans-serif;
+  --radius-card: 1.25rem;
+  --radius-pill: 999px;
+}
+
 html,
 body,
 #root {
@@ -8,28 +30,220 @@ body,
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    sans-serif;
-  background: #0f172a;
-  color: #f8fafc;
+  font-family: var(--font-body);
+  background: var(--cream);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Halftone + paper grain */
+.game-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: var(--cream);
+  background-image:
+    radial-gradient(circle at 1px 1px, var(--paper-line) 1px, transparent 0),
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255, 209, 102, 0.35), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(67, 97, 238, 0.12), transparent),
+    radial-gradient(ellipse 50% 35% at 0% 80%, rgba(247, 37, 133, 0.1), transparent);
+  background-size: 18px 18px, 100% 100%, 100% 100%, 100% 100%;
+}
+
+.game-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.card-sticker {
+  background: white;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-sticker);
+}
+
+.card-sticker--p1 {
+  background: linear-gradient(180deg, white 0%, var(--p1-light) 100%);
+}
+
+.card-sticker--p2 {
+  background: linear-gradient(180deg, white 0%, var(--p2-light) 100%);
+}
+
+.btn-play {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.125rem;
+  letter-spacing: 0.02em;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sticker);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.btn-play:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 7px 7px 0 var(--ink);
+}
+
+.btn-play:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.btn-play--primary {
+  background: var(--sun);
+  color: var(--ink);
+}
+
+.btn-play--ghost {
+  background: white;
+  color: var(--ink);
+}
+
+.btn-play--mint {
+  background: var(--mint);
+  color: var(--ink);
+}
+
+.btn-play--coral {
+  background: var(--coral);
+  color: white;
+  border-color: var(--ink);
+}
+
+.input-play {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink);
+  background: white;
+  border: 3px solid var(--ink);
+  border-radius: 0.75rem;
+  padding: 0.65rem 1rem;
+  outline: none;
+  transition: box-shadow 0.15s ease;
+}
+
+.input-play:focus {
+  box-shadow: 0 0 0 3px var(--cream), 0 0 0 6px var(--p1);
+}
+
+.input-play--p2:focus {
+  box-shadow: 0 0 0 3px var(--cream), 0 0 0 6px var(--p2);
+}
+
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.65rem;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  background: white;
+}
+
+.camera-booth {
+  border: 4px solid var(--ink);
+  border-radius: 1.5rem;
+  box-shadow: var(--shadow-sticker), var(--shadow-soft);
+  background: var(--ink);
+}
+
+.camera-booth::before {
+  content: 'EN VIVO';
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding: 0.2rem 0.75rem;
+  background: var(--coral);
+  color: white;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+}
+
+.status-chip {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--ink);
+}
+
+.status-chip--ready {
+  background: #d8faeb;
+  color: #0d7a52;
+}
+
+.status-chip--wait {
+  background: #fff3cd;
+  color: #8a6d00;
 }
 
 @keyframes bounce-in {
   0% {
-    transform: scale(0.5);
+    transform: scale(0.6) rotate(-2deg);
     opacity: 0;
   }
-  60% {
-    transform: scale(1.1);
+  70% {
+    transform: scale(1.04) rotate(1deg);
   }
   100% {
-    transform: scale(1);
+    transform: scale(1) rotate(0);
     opacity: 1;
   }
 }
 
 .animate-bounce-in {
-  animation: bounce-in 0.5s ease-out forwards;
+  animation: bounce-in 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+
+.animate-wiggle {
+  animation: wiggle 2.5s ease-in-out infinite;
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float-y 4s ease-in-out infinite;
 }
 
 @keyframes pulse-ring {
@@ -38,10 +252,49 @@ body {
     opacity: 1;
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.45;
   }
 }
 
 .animate-pulse-ring {
-  animation: pulse-ring 1s ease-in-out infinite;
+  animation: pulse-ring 1.2s ease-in-out infinite;
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-pop {
+  animation: pop 0.35s ease-out;
+}
+
+@keyframes marquee-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  animation: marquee-drift 28s linear infinite;
+}
+
+.stagger-1 {
+  animation-delay: 0.08s;
+}
+.stagger-2 {
+  animation-delay: 0.16s;
+}
+.stagger-3 {
+  animation-delay: 0.24s;
 }

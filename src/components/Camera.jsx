@@ -7,7 +7,7 @@ import {
 import { drawVisionSkeleton } from '../utils/drawVision'
 
 const Camera = forwardRef(function Camera(
-  { detection, phase, frozen, frozenFrame },
+  { detection, phase, frozen, frozenFrame, tieBreakerHint },
   ref,
 ) {
   const videoRef = useRef(null)
@@ -71,10 +71,10 @@ const Camera = forwardRef(function Camera(
       }
 
       if (detection.player1?.landmarks) {
-        drawLandmarks(ctx, detection.player1.landmarks, '#3b82f6', w, h, 5)
+        drawLandmarks(ctx, detection.player1.landmarks, '#4361ee', w, h, 5)
       }
       if (detection.player2?.landmarks) {
-        drawLandmarks(ctx, detection.player2.landmarks, '#ef4444', w, h, 5)
+        drawLandmarks(ctx, detection.player2.landmarks, '#f72585', w, h, 5)
       }
 
       rafId = requestAnimationFrame(draw)
@@ -89,7 +89,7 @@ const Camera = forwardRef(function Camera(
   return (
     <div
       ref={containerRef}
-      className="relative aspect-video w-full max-w-3xl overflow-hidden rounded-xl bg-black shadow-xl"
+      className="camera-booth relative aspect-video w-full max-w-3xl overflow-hidden bg-[var(--ink)]"
     >
       <video
         ref={videoRef}
@@ -123,24 +123,28 @@ const Camera = forwardRef(function Camera(
 
       {showGuide && (
         <>
-          <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 rounded-lg bg-blue-600/80 px-2 py-1 text-xs font-bold text-white">
-            Jugador 1 →
+          <div className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full border-2 border-[var(--ink)] bg-[var(--p1)] px-3 py-1 font-display text-xs font-bold text-white shadow-[2px_2px_0_var(--ink)]">
+            J1 →
           </div>
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-red-600/80 px-2 py-1 text-xs font-bold text-white">
-            ← Jugador 2
+          <div className="pointer-events-none absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full border-2 border-[var(--ink)] bg-[var(--p2)] px-3 py-1 font-display text-xs font-bold text-white shadow-[2px_2px_0_var(--ink)]">
+            ← J2
           </div>
         </>
       )}
 
       {phase === 'waiting' && (
-        <div className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-sm text-white/90 drop-shadow">
-          Coloca una mano a cada lado del encuadre
+        <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center px-4">
+          <span className="rounded-full border-2 border-[var(--ink)] bg-white/95 px-4 py-1.5 font-display text-sm font-semibold text-[var(--ink)] shadow-[2px_2px_0_var(--ink)]">
+            Una mano a cada lado del centro
+          </span>
         </div>
       )}
 
-      {phase === 'penalty' && (
-        <div className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-sm font-medium text-amber-300 drop-shadow">
-          ¡Coge los billetes con la mano!
+      {phase === 'tiebreaker' && (
+        <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center px-4">
+          <span className="rounded-full border-2 border-[var(--ink)] bg-[var(--sun)] px-4 py-1.5 font-display text-sm font-bold text-[var(--ink)] shadow-[2px_2px_0_var(--ink)]">
+            {tieBreakerHint ?? '¡Coge todo lo que caiga!'}
+          </span>
         </div>
       )}
     </div>

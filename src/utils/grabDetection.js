@@ -1,6 +1,9 @@
 /** Puntos de agarre: muñeca + yemas (mejor para coger billetes) */
 const GRAB_INDICES = [0, 4, 8, 12, 16, 20]
 
+/** MediaPipe Hand: punta del dedo índice */
+const INDEX_FINGER_TIP = 8
+
 export function getGrabPoints(landmarks, mirrored = true) {
   if (!landmarks?.length) return []
   const points = []
@@ -12,6 +15,14 @@ export function getGrabPoints(landmarks, mirrored = true) {
     points.push({ x, y: p.y })
   }
   return points
+}
+
+export function getPointerFingerTip(landmarks, mirrored = true) {
+  const p = landmarks?.[INDEX_FINGER_TIP]
+  if (!p) return null
+  let x = p.x
+  if (mirrored) x = 1 - x
+  return { x, y: p.y }
 }
 
 export function getGrabPoint(landmarks, mirrored = true) {
@@ -28,9 +39,40 @@ export function distanceNorm(a, b) {
   return Math.hypot(dx, dy)
 }
 
+function assignHolisticHandToPlayer(wristXMirrored) {
+  return wristXMirrored < 0.5 ? 'player1' : 'player2'
+}
+
 /**
- * Puntos de agarre por jugador para la penitencia (solo billetes).
- * Usa asignación + fallback por posición en pantalla desde Holistic.
+ * Solo punta del índice por jugador (colisión “tocar” con el dedo).
+ */
+export function getPointerGrabbers(detection) {
+  const grabbers = { player1: [], player2: [] }
+
+  const addTip = (player, landmarks) => {
+    const tip = getPointerFingerTip(landmarks, true)
+    if (tip) grabbers[player].push(tip)
+  }
+
+  addTip('player1', detection?.player1?.landmarks)
+  addTip('player2', detection?.player2?.landmarks)
+
+  const hol = detection?.holistic
+  for (const landmarks of [hol?.leftHandLandmarks, hol?.rightHandLandmarks].filter(Boolean)) {
+    const wrist = landmarks[0]
+    if (!wrist) continue
+    const player = assignHolisticHandToPlayer(1 - wrist.x)
+    const tip = getPointerFingerTip(landmarks, true)
+    if (tip && grabbers[player].length === 0) {
+      grabbers[player].push(tip)
+    }
+  }
+
+  return grabbers
+}
+
+/**
+ * Puntos de agarre por jugador (mano completa).
  */
 export function getPenaltyGrabbers(detection) {
   const grabbers = { player1: [], player2: [] }
@@ -44,16 +86,10 @@ export function getPenaltyGrabbers(detection) {
   addPlayer('player2', detection?.player2?.landmarks)
 
   const hol = detection?.holistic
-  const extraHands = [
-    hol?.leftHandLandmarks,
-    hol?.rightHandLandmarks,
-  ].filter(Boolean)
-
-  for (const landmarks of extraHands) {
+  for (const landmarks of [hol?.leftHandLandmarks, hol?.rightHandLandmarks].filter(Boolean)) {
     const wrist = landmarks[0]
     if (!wrist) continue
-    let x = 1 - wrist.x
-    const player = x < 0.5 ? 'player1' : 'player2'
+    const player = assignHolisticHandToPlayer(1 - wrist.x)
     const pts = getGrabPoints(landmarks, true)
     if (grabbers[player].length < pts.length) {
       grabbers[player] = pts
@@ -63,8 +99,10 @@ export function getPenaltyGrabbers(detection) {
   return grabbers
 }
 
-export function tryGrabBill(grabbers, bill, radius) {
-  const hit = (points) => points.some((p) => distanceNorm(p, bill) < radius)
+/** Colisión punto ↔ centro del ítem (coords normalizadas). */
+export function tryGrabItem(grabbers, item, radius) {
+  const hit = (points) =>
+    points.length > 0 && points.some((p) => distanceNorm(p, item) < radius)
 
   const p1 = hit(grabbers.player1)
   const p2 = hit(grabbers.player2)
@@ -72,9 +110,12 @@ export function tryGrabBill(grabbers, bill, radius) {
   if (p1 && !p2) return 'player1'
   if (p2 && !p1) return 'player2'
   if (p1 && p2) {
-    const d1 = Math.min(...grabbers.player1.map((p) => distanceNorm(p, bill)))
-    const d2 = Math.min(...grabbers.player2.map((p) => distanceNorm(p, bill)))
+    const d1 = Math.min(...grabbers.player1.map((p) => distanceNorm(p, item)))
+    const d2 = Math.min(...grabbers.player2.map((p) => distanceNorm(p, item)))
     return d1 <= d2 ? 'player1' : 'player2'
   }
   return null
 }
+
+/** @deprecated use tryGrabItem */
+export const tryGrabBill = tryGrabItem

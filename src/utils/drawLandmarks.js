@@ -62,9 +62,9 @@ export function drawCenterDivider(ctx, width, height) {
 export function drawZoneBorders(ctx, width, height) {
   ctx.save()
   ctx.lineWidth = 4
-  ctx.strokeStyle = 'rgba(59, 130, 246, 0.9)'
+  ctx.strokeStyle = 'rgba(67, 97, 238, 0.85)'
   ctx.strokeRect(8, 8, width / 2 - 16, height - 16)
-  ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)'
+  ctx.strokeStyle = 'rgba(247, 37, 133, 0.85)'
   ctx.strokeRect(width / 2 + 8, 8, width / 2 - 16, height - 16)
   ctx.restore()
 }

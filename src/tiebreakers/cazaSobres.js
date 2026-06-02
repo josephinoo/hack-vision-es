@@ -1,0 +1,32 @@
+/** @type {import('./types.js').TieBreakerDefinition} */
+export const cazaSobresTieBreaker = {
+  id: 'caza-sobres',
+  number: 4,
+  title: 'Caza de Sobres',
+  description:
+    'Lluvia de sobres — tocá con la punta del índice. ¡Cuidado con las bombas (−5)!',
+  pickerEmoji: '✉️',
+  implemented: true,
+  requiresHandTracking: true,
+  bannerTitle: 'Caza de Sobres',
+  bannerIntro: '¡Empate! Tocá los sobres con el dedo índice — evitad las bombas',
+  bannerPlaying: 'Solo cuenta si el índice toca el sobre · 💣 = −5 pts',
+  gameConfig: {
+    durationMs: 16_000,
+    introMs: 2200,
+    itemSize: 46,
+    grabRadius: 0.09,
+    maxItems: 52,
+    spawnEveryStart: 55,
+    spawnEveryEnd: 22,
+    fallSpeedMin: 0.42,
+    fallSpeedMax: 0.92,
+    itemType: 'emoji',
+    itemEmoji: '✉️',
+    scoreLabel: 'sobres',
+    usePointerFingerOnly: true,
+    bombChance: 0.14,
+    bombPenalty: 5,
+    bombEmoji: '💣',
+  },
+}

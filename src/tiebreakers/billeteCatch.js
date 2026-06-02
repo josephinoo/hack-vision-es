@@ -1,0 +1,26 @@
+/** @type {import('./types.js').TieBreakerDefinition} */
+export const billeteCatchTieBreaker = {
+  id: 'billete-catch',
+  title: 'Lluvia de billetes',
+  description: 'Versión clásica con billetes (imagen).',
+  pickerEmoji: '💶',
+  implemented: true,
+  requiresHandTracking: true,
+  bannerTitle: 'Penitencia · Billetes',
+  bannerIntro: '¡Empate! A por los billetes con la mano',
+  bannerPlaying: 'Solo billetes valen — acerca la mano para cogerlos',
+  gameConfig: {
+    durationMs: 18_000,
+    introMs: 1800,
+    itemSize: 72,
+    grabRadius: 0.18,
+    maxItems: 16,
+    spawnEveryStart: 550,
+    spawnEveryEnd: 180,
+    fallSpeedMin: 0.32,
+    fallSpeedMax: 0.54,
+    itemType: 'image',
+    itemImageSrc: '/images/billete.png',
+    scoreLabel: 'billetes',
+  },
+}
