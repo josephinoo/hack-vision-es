@@ -17,7 +17,10 @@ export const operacionMaletinTieBreaker = {
     'Primer jugador con 3 maletines gana. Cuidado con tanga, mascarilla y Open Corsa.',
   pickerEmoji: '💼',
   implemented: true,
-  requiresHandTracking: true,
+  // El agarre usa los landmarks de 2 manos del reconocedor RPS (getFistGrabbers).
+  // No hace falta el HolisticLandmarker (modelo pesado de pose+cara+manos), que
+  // además es de una sola persona. Mantenerlo apagado evita correr 2 modelos a la vez.
+  requiresHandTracking: false,
   bannerTitle: 'Operación Maletín',
   bannerIntro: '✊ Cierra el puño · el primero con 3 maletines gana',
   bannerPlaying: '✊ Coge 💼 maletines · evita 👙😷🚗',

@@ -1,98 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Camera from './components/Camera'
 import PlayerPanel from './components/PlayerPanel'
 import Countdown from './components/Countdown'
 import ResultOverlay from './components/ResultOverlay'
 import CatchRainOverlay from './components/tiebreakers/CatchRainOverlay'
-import MaletinOverlay from './components/MaletinOverlay'
 import TwerkingChallenge from './components/TwerkingChallenge'
+import MaletinOverlay from './components/MaletinOverlay'
 import GameShell from './components/GameShell'
 import GameHeader, { HeaderButton } from './components/GameHeader'
-import { HeroHands } from './components/decor/FloatingHands'
+import PlayerSelect from './components/PlayerSelect'
+import { DEFAULT_ROSTER, rosterToGameNames } from './config/players'
 import { useRpsDetection } from './hooks/useRpsDetection'
 import { useHolisticPenalty } from './hooks/useHolisticPenalty'
 import { useGameFlow, PHASE } from './hooks/useGameFlow'
 import { useCatchRainGame } from './hooks/useCatchRainGame'
 import { useOperacionMaletin } from './hooks/useOperacionMaletin'
-import { getTieBreaker, DEFAULT_TIE_BREAKER_ID } from './tiebreakers/registry'
+import { getTieBreaker } from './tiebreakers/registry'
 import { cazaSobresTieBreaker } from './tiebreakers/cazaSobres'
-import { DEV_ALWAYS_MALETIN } from './tiebreakers/operacionMaletin'
 import { bothHandsDetected, createPlayerLock } from './utils/assignPlayers'
 import { warmupGameAudio } from './utils/gameSfx'
+import { usePose } from './hooks/usePose'
+import { useBombFlash } from './hooks/useBombFlash'
+import {
+  preloadPlayerAvatars,
+  resolvePlayerExpressions,
+} from './utils/playerFaceOverlay'
 
-function NameSetup({ onStart }) {
-  const [p1, setP1] = useState('Jugador 1')
-  const [p2, setP2] = useState('Jugador 2')
-
-  return (
-    <GameShell className="items-center justify-center px-4 py-10">
-      <div className="relative z-10 w-full max-w-lg">
-        <HeroHands />
-
-        <div className="card-sticker mt-2 p-8 sm:p-10">
-          <p className="text-center font-display text-sm font-semibold uppercase tracking-[0.2em] text-[var(--coral)]">
-            Salón de juegos
-          </p>
-          <h1 className="mt-2 text-center font-display text-4xl font-bold leading-[1.05] text-[var(--ink)] sm:text-5xl">
-            Piedra, Papel
-            <br />
-            <span className="text-[var(--p1)]">o</span>{' '}
-            <span className="text-[var(--p2)]">Tijera</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-sm text-center text-base font-semibold leading-relaxed text-[var(--ink-soft)]">
-            Dos jugadores, una cámara. Izquierda contra derecha — ¡sin trampas!
-          </p>
-
-          <div className="mt-8 flex flex-col gap-4">
-            <label className="flex flex-col gap-1.5">
-              <span className="font-display text-sm font-bold text-[var(--p1)]">
-                Jugador 1 · lado izquierdo
-              </span>
-              <input
-                type="text"
-                value={p1}
-                onChange={(e) => setP1(e.target.value)}
-                className="input-play"
-                maxLength={20}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="font-display text-sm font-bold text-[var(--p2)]">
-                Jugador 2 · lado derecho
-              </span>
-              <input
-                type="text"
-                value={p2}
-                onChange={(e) => setP2(e.target.value)}
-                className="input-play input-play--p2"
-                maxLength={20}
-              />
-            </label>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              onStart({
-                player1: p1.trim() || 'Jugador 1',
-                player2: p2.trim() || 'Jugador 2',
-              })
-            }
-            className="btn-play btn-play--primary mt-8 w-full py-3.5"
-          >
-            ¡A jugar!
-          </button>
-        </div>
-
-        <p className="mt-6 text-center text-sm font-semibold text-[var(--ink-soft)]">
-          Necesitas cámara web · colocaos frente al monitor, uno a cada lado
-        </p>
-      </div>
-    </GameShell>
-  )
-}
-
-function Game({ names, onBack }) {
+function Game({ names, onBack, deepLinkGame }) {
   const videoRef = useRef(null)
   const playerLockRef = useRef(null)
   const frozenCanvasRef = useRef(null)
@@ -104,14 +38,11 @@ function Game({ names, onBack }) {
   const nextTieBreakerId =
     tieBreakersPlayed === 0 ? 'caza-sobres' : 'twerking-challenge'
   const tieBreaker = tieBreakerId ? getTieBreaker(tieBreakerId) : null
-  const isCatchRain = Boolean(tieBreaker?.gameConfig)
-  const isMaletin = tieBreaker?.kind === 'maletin'
+  const isCatchRainTieBreaker = Boolean(tieBreaker?.gameConfig)
   const isTwerkingTieBreaker = tieBreaker?.componentType === 'twerking'
-  const tieBreakerActive = Boolean(
-    tieBreakerId &&
-      tieBreaker?.implemented &&
-      (isCatchRain || isMaletin || isTwerkingTieBreaker),
-  )
+  const isMaletin = tieBreaker?.kind === 'maletin'
+  const tieBreakerActive =
+    isCatchRainTieBreaker || isTwerkingTieBreaker || isMaletin
   const catchConfig = tieBreaker?.gameConfig ?? cazaSobresTieBreaker.gameConfig
 
   const captureFrame = useCallback(() => {
@@ -129,6 +60,14 @@ function Game({ names, onBack }) {
     ctx.drawImage(video, 0, 0)
     setFrozenFrame(canvas)
   }, [])
+
+  const { detection: poseDetection } = usePose(videoRef, {
+    enabled: !isTwerkingTieBreaker,
+  })
+
+  useEffect(() => {
+    preloadPlayerAvatars([names.player1Avatar, names.player2Avatar])
+  }, [names.player1Avatar, names.player2Avatar])
 
   const {
     ready: rpsReady,
@@ -163,14 +102,15 @@ function Game({ names, onBack }) {
   const detection = tieBreakerActive
     ? {
         ...holisticDetection,
-        player1: rpsDetection.player1 || holisticDetection.player1,
-        player2: rpsDetection.player2 || holisticDetection.player2,
+        // Holistic primero: RPS a veces asigna la mano derecha siempre a J1
+        player1: holisticDetection.player1 || rpsDetection.player1,
+        player2: holisticDetection.player2 || rpsDetection.player2,
+        assignment:
+          holisticDetection.assignment?.player1 && holisticDetection.assignment?.player2
+            ? holisticDetection.assignment
+            : rpsDetection.assignment,
       }
     : rpsDetection
-  const assignmentRef = useRef(null)
-  useEffect(() => {
-    assignmentRef.current = detection.assignment
-  }, [detection.assignment])
 
   const {
     phase,
@@ -210,18 +150,43 @@ function Game({ names, onBack }) {
     itemSize,
     scoreLabel,
   } = useCatchRainGame({
-    active: tieBreakerActive && isCatchRain,
+    active: isCatchRainTieBreaker,
     detection,
     config: catchConfig,
     onFinish: handleTieBreakerFinish,
   })
 
   const maletin = useOperacionMaletin({
-    active: tieBreakerActive && isMaletin,
+    active: isMaletin,
     detection,
     config: tieBreaker?.maletinConfig,
     onFinish: handleTieBreakerFinish,
   })
+
+  const bombFlash = useBombFlash(
+    isCatchRainTieBreaker && tieStatus === 'playing',
+    catchScores,
+  )
+
+  const playerExpressions = useMemo(
+    () =>
+      resolvePlayerExpressions({
+        phase: tieBreakerActive ? 'tiebreaker' : phase,
+        roundResult,
+        tieBreakerActive,
+        tieStatus,
+        catchScores,
+        bombFlash,
+      }),
+    [
+      phase,
+      roundResult,
+      tieBreakerActive,
+      tieStatus,
+      catchScores,
+      bombFlash,
+    ],
+  )
 
   const getPanelTieScore = (player) => {
     if (isMaletin) return maletin.scores[player]
@@ -231,75 +196,59 @@ function Game({ names, onBack }) {
     return catchScores[player]
   }
 
-  const tieBreakerScoreLabel = isMaletin
+  const panelScoreLabel = isMaletin
     ? 'maletines'
     : isTwerkingTieBreaker
       ? 'twerk pts'
       : scoreLabel
 
-  const handleNewRound = useCallback(() => {
+  const handleNewRound = () => {
     setFrozenFrame(null)
     setTieBreakerId(null)
     setTieBreakerResult(null)
     newRound()
-  }, [newRound])
+  }
 
-  const handleStartTieBreaker = useCallback((id) => {
-    const def = getTieBreaker(id)
-    const canRun =
-      def?.gameConfig || def?.kind === 'maletin' || def?.componentType === 'twerking'
-    if (!def?.implemented || !canRun) return
+  const handleStartTieBreaker = useCallback(
+    (id) => {
+      const def = getTieBreaker(id)
+      const canRun =
+        def?.gameConfig ||
+        def?.componentType === 'twerking' ||
+        def?.kind === 'maletin'
+      if (!def?.implemented || !canRun) return
 
-    warmupGameAudio()
+      warmupGameAudio()
 
-    setFrozenFrame(null)
-    setTieBreakerResult(null)
-    if (assignmentRef.current) {
-      playerLockRef.current = createPlayerLock(assignmentRef.current)
-    }
-    setTieBreakersPlayed((count) => count + 1)
-    setTieBreakerId(id)
-  }, [])
+      setFrozenFrame(null)
+      setTieBreakerResult(null)
+      if (detection.assignment) {
+        playerLockRef.current = createPlayerLock(detection.assignment)
+      }
+      setTieBreakersPlayed((count) => count + 1)
+      setTieBreakerId(id)
+    },
+    [detection.assignment],
+  )
 
-  const handleResetScores = useCallback(() => {
+  // Deeplink ?game=maletin: arranca el desafío una sola vez en cuanto hay detector.
+  const didAutoStartRef = useRef(false)
+  useEffect(() => {
+    if (didAutoStartRef.current || deepLinkGame !== 'maletin' || !ready) return
+    didAutoStartRef.current = true
+    handleStartTieBreaker('operacion-maletin')
+  }, [deepLinkGame, ready, handleStartTieBreaker])
+
+  const handleResetScores = () => {
     resetScores()
     setTieBreakersPlayed(0)
-  }, [resetScores])
+  }
 
-  const handleTieBreakerContinue = useCallback(() => {
+  const handleTieBreakerContinue = () => {
     setTieBreakerId(null)
     setTieBreakerResult(null)
     newRound()
-  }, [newRound])
-
-  // Rama desempate-maletin: lanzar #3 siempre para probar
-  useEffect(() => {
-    if (!DEV_ALWAYS_MALETIN) return
-    const t = setTimeout(() => handleStartTieBreaker('operacion-maletin'), 1800)
-    return () => clearTimeout(t)
-  }, [handleStartTieBreaker])
-
-  useEffect(() => {
-    if (DEV_ALWAYS_MALETIN) return
-    const isTie =
-      phase === PHASE.RESULT &&
-      roundResult?.winner === 'tie' &&
-      roundResult?.gestures?.player1 &&
-      roundResult?.gestures?.player2
-    if (!isTie || tieBreakerId) return
-    const t = setTimeout(
-      () => handleStartTieBreaker(DEFAULT_TIE_BREAKER_ID),
-      1300,
-    )
-    return () => clearTimeout(t)
-  }, [phase, roundResult, tieBreakerId, handleStartTieBreaker])
-
-  useEffect(() => {
-    if (!DEV_ALWAYS_MALETIN) return
-    if (phase !== PHASE.RESULT || tieBreakerId) return
-    const t = setTimeout(() => handleStartTieBreaker('operacion-maletin'), 900)
-    return () => clearTimeout(t)
-  }, [phase, roundResult, tieBreakerId, handleStartTieBreaker])
+  }
 
   const frozen =
     (phase === PHASE.RESULT || phase === PHASE.CAPTURE) && !tieBreakerActive
@@ -342,18 +291,19 @@ function Game({ names, onBack }) {
         <PlayerPanel
           side="left"
           name={names.player1}
+          avatar={names.player1Avatar}
           detected={p1Detected}
           gesture={displayGesture1}
           score={scores.player1}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
           tieBreakerScore={getPanelTieScore('player1')}
-          tieBreakerScoreLabel={tieBreakerScoreLabel}
+          tieBreakerScoreLabel={panelScoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
 
         <div className="relative flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-2 pt-4">
-          {tieBreakerActive && isMaletin && (
+          {isMaletin && (
             <MaletinOverlay
               part="hud"
               visible={maletin.status !== 'idle'}
@@ -370,50 +320,24 @@ function Game({ names, onBack }) {
             />
           )}
 
-          <div className="relative w-full">
-            <Camera
-              ref={videoRef}
-              detection={detection}
-              phase={tieBreakerActive ? 'tiebreaker' : phase}
-              frozen={frozen}
-              frozenFrame={frozenFrame}
-              tieBreakerHint={tieBreaker?.bannerPlaying}
-            />
-
-            {tieBreakerActive && isMaletin && (
-              <MaletinOverlay
-                part="stage"
-                visible={
-                  maletin.status === 'intro' || maletin.status === 'playing'
-                }
-                tieBreaker={tieBreaker}
-                status={maletin.status}
-                items={maletin.items}
-                winScore={maletin.winScore}
-                briefcaseSize={maletin.briefcaseSize}
-                itemImageSrc={maletin.itemImageSrc}
-              />
-            )}
-
-            {tieBreakerActive && isMaletin && maletin.status === 'finished' && (
-              <MaletinOverlay
-                part="finish"
-                visible
-                tieBreaker={tieBreaker}
-                status={maletin.status}
-                scores={maletin.scores}
-                winScore={maletin.winScore}
-                itemImageSrc={maletin.itemImageSrc}
-                player1Name={names.player1}
-                player2Name={names.player2}
-                finishResult={tieBreakerResult}
-                onContinue={handleTieBreakerContinue}
-              />
-            )}
-          </div>
+          <Camera
+            ref={videoRef}
+            detection={detection}
+            phase={tieBreakerActive ? 'tiebreaker' : phase}
+            frozen={frozen}
+            frozenFrame={frozenFrame}
+            tieBreakerHint={tieBreaker?.bannerPlaying}
+            poseDetection={poseDetection}
+            playerAvatars={{
+              player1: names.player1Avatar,
+              player2: names.player2Avatar,
+            }}
+            playerExpressions={playerExpressions}
+            showPlayerFaces={!isTwerkingTieBreaker}
+          />
 
           <CatchRainOverlay
-            visible={tieBreakerActive && isCatchRain}
+            visible={isCatchRainTieBreaker}
             tieBreaker={tieBreaker}
             status={tieStatus}
             timeLeft={tieTimeLeft}
@@ -430,11 +354,42 @@ function Game({ names, onBack }) {
             onContinue={handleTieBreakerContinue}
           />
 
+          {isMaletin && (
+            <MaletinOverlay
+              part="stage"
+              visible={maletin.status === 'intro' || maletin.status === 'playing'}
+              tieBreaker={tieBreaker}
+              status={maletin.status}
+              items={maletin.items}
+              winScore={maletin.winScore}
+              briefcaseSize={maletin.briefcaseSize}
+              itemImageSrc={maletin.itemImageSrc}
+            />
+          )}
+
+          {isMaletin && maletin.status === 'finished' && (
+            <MaletinOverlay
+              part="finish"
+              visible
+              tieBreaker={tieBreaker}
+              status={maletin.status}
+              scores={maletin.scores}
+              winScore={maletin.winScore}
+              itemImageSrc={maletin.itemImageSrc}
+              player1Name={names.player1}
+              player2Name={names.player2}
+              finishResult={tieBreakerResult}
+              onContinue={handleTieBreakerContinue}
+            />
+          )}
+
           <TwerkingChallenge
             active={isTwerkingTieBreaker}
             videoRef={videoRef}
             player1Name={names.player1}
             player2Name={names.player2}
+            player1Avatar={names.player1Avatar}
+            player2Avatar={names.player2Avatar}
             onFinish={handleTieBreakerFinish}
             onContinue={handleTieBreakerContinue}
           />
@@ -455,15 +410,9 @@ function Game({ names, onBack }) {
             defaultTieBreakerId={nextTieBreakerId}
           />
 
-          {tieBreakerActive && isCatchRain && tieStatus === 'playing' && (
+          {isCatchRainTieBreaker && tieStatus === 'playing' && (
             <p className="status-chip status-chip--wait mt-4">
               {tieBreaker?.bannerPlaying}
-            </p>
-          )}
-
-          {DEV_ALWAYS_MALETIN && !tieBreakerActive && phase === PHASE.WAITING && (
-            <p className="status-chip status-chip--ready mt-4">
-              Modo prueba: Operación Maletín en breve…
             </p>
           )}
 
@@ -489,13 +438,14 @@ function Game({ names, onBack }) {
         <PlayerPanel
           side="right"
           name={names.player2}
+          avatar={names.player2Avatar}
           detected={p2Detected}
           gesture={displayGesture2}
           score={scores.player2}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
           tieBreakerScore={getPanelTieScore('player2')}
-          tieBreakerScoreLabel={tieBreakerScoreLabel}
+          tieBreakerScoreLabel={panelScoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
       </main>
@@ -514,11 +464,11 @@ function getDeepLinkGame() {
 export default function App() {
   const [deepLink] = useState(getDeepLinkGame)
   const [started, setStarted] = useState(() => deepLink === 'maletin')
-  const [names, setNames] = useState({ player1: 'Ábalos', player2: 'Koldo' })
+  const [names, setNames] = useState(() => rosterToGameNames(DEFAULT_ROSTER))
 
   if (!started) {
     return (
-      <NameSetup
+      <PlayerSelect
         onStart={(n) => {
           setNames(n)
           setStarted(true)
@@ -527,5 +477,11 @@ export default function App() {
     )
   }
 
-  return <Game names={names} onBack={() => setStarted(false)} />
+  return (
+    <Game
+      names={names}
+      deepLinkGame={deepLink}
+      onBack={() => setStarted(false)}
+    />
+  )
 }

@@ -1,8 +1,10 @@
 import { GESTURE_EMOJI, GESTURE_LABEL_ES } from '../utils/gameLogic'
+import PlayerAvatar from './PlayerAvatar'
 
 export default function PlayerPanel({
   side,
   name,
+  avatar,
   detected,
   gesture,
   score,
@@ -23,16 +25,21 @@ export default function PlayerPanel({
   return (
     <aside className={`flex w-44 shrink-0 flex-col gap-3 p-4 sm:w-48 ${cardClass}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <span
-            className="badge-pill mb-1.5"
-            style={{ borderColor: accent, color: accent }}
-          >
-            {label}
-          </span>
-          <h2 className="truncate font-display text-base font-bold leading-tight text-[var(--ink)]">
-            {name}
-          </h2>
+        <div className="flex min-w-0 items-center gap-2">
+          {avatar && (
+            <PlayerAvatar src={avatar} name={name} size="sm" accent={accent} />
+          )}
+          <div className="min-w-0">
+            <span
+              className="badge-pill mb-1.5"
+              style={{ borderColor: accent, color: accent }}
+            >
+              {label}
+            </span>
+            <h2 className="truncate font-display text-base font-bold leading-tight text-[var(--ink)]">
+              {name}
+            </h2>
+          </div>
         </div>
         <span
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[var(--ink)] text-sm font-bold ${

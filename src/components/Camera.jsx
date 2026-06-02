@@ -5,9 +5,20 @@ import {
   drawZoneBorders,
 } from '../utils/drawLandmarks'
 import { drawVisionSkeleton } from '../utils/drawVision'
+import { drawPlayerFace, getPoseForPlayer } from '../utils/playerFaceOverlay'
 
 const Camera = forwardRef(function Camera(
-  { detection, phase, frozen, frozenFrame, tieBreakerHint },
+  {
+    detection,
+    phase,
+    frozen,
+    frozenFrame,
+    tieBreakerHint,
+    poseDetection,
+    playerAvatars,
+    playerExpressions,
+    showPlayerFaces = true,
+  },
   ref,
 ) {
   const videoRef = useRef(null)
@@ -70,6 +81,8 @@ const Camera = forwardRef(function Camera(
         drawVisionSkeleton(ctx, detection.holistic, w, h)
       }
 
+      // Eliminadas las caras de los políticos en la cámara según solicitud del usuario
+
       if (detection.player1?.landmarks) {
         drawLandmarks(ctx, detection.player1.landmarks, '#4361ee', w, h, 5)
       }
@@ -82,7 +95,7 @@ const Camera = forwardRef(function Camera(
 
     draw()
     return () => cancelAnimationFrame(rafId)
-  }, [detection, frozen, frozenFrame])
+  }, [detection, frozen, frozenFrame, poseDetection, playerAvatars, playerExpressions, showPlayerFaces])
 
   const showGuide = phase === 'waiting'
 

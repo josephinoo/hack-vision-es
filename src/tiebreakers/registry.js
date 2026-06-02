@@ -1,12 +1,17 @@
 import { createStubTieBreaker } from './createStub'
 import { cazaSobresTieBreaker } from './cazaSobres'
 import { billeteCatchTieBreaker } from './billeteCatch'
-import { operacionMaletinTieBreaker } from './operacionMaletin'
 import { twerkingChallengeTieBreaker } from './twerkingChallenge'
+import { operacionMaletinTieBreaker } from './operacionMaletin'
 
 /** Ordenados por numero de desempate (#1-#4). */
 const TIE_BREAKERS_LIST = [
-  createStubTieBreaker(1, 'Desempate #1', 'Reservado — tu compañero lo implementará aquí.', '1️⃣'),
+  createStubTieBreaker(
+    1,
+    'Desempate #1',
+    'Reservado: tu companero lo implementara aqui.',
+    '1',
+  ),
   twerkingChallengeTieBreaker,
   operacionMaletinTieBreaker,
   cazaSobresTieBreaker,
@@ -17,8 +22,8 @@ export const EXTRA_TIE_BREAKERS = [billeteCatchTieBreaker]
 
 export const TIE_BREAKERS = TIE_BREAKERS_LIST
 
-/** Desempate por defecto al empatar (cambiar aquí o pasar id desde UI). */
-export const DEFAULT_TIE_BREAKER_ID = 'operacion-maletin'
+/** Desempate por defecto al empatar. */
+export const DEFAULT_TIE_BREAKER_ID = 'caza-sobres'
 
 const byId = new Map(
   [...TIE_BREAKERS_LIST, ...EXTRA_TIE_BREAKERS].map((tb) => [tb.id, tb]),

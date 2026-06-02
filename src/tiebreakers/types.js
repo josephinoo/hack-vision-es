@@ -23,19 +23,23 @@
 /**
  * @typedef {Object} MaletinGameConfig
  * @property {number} introMs
- * @property {number} spawnWindowMs - ventana aleatoria antes de aparecer (ms)
- * @property {number} grabRadius
- * @property {number} timeoutAfterSpawnMs
+ * @property {number} durationMs
+ * @property {number} winScore - maletines para ganar
+ * @property {number} grabRadius - normalized 0-1
  * @property {number} itemSize - px
- * @property {string} itemImageSrc
- * @property {number} [winScore] - maletines para ganar (p. ej. 3)
+ * @property {number} startHealth - vidas iniciales
+ * @property {number} briefcaseChance - 0–1 prob. de que el ítem sea maletín
+ * @property {number} itemLifetimeMs - ms antes de que expire un ítem no cogido
+ * @property {number} spawnEveryMinMs
+ * @property {number} spawnEveryMaxMs
+ * @property {number} maxItemsOnScreen
+ * @property {string} [itemImageSrc]
  */
 
 /**
  * @typedef {Object} TieBreakerDefinition
  * @property {string} id - unique slug
  * @property {number} [number] - desempate # (1-4)
- * @property {'catch-rain'|'maletin'} [kind] - catch-rain si hay gameConfig; maletin = custom
  * @property {string} title
  * @property {string} description
  * @property {string} pickerEmoji
@@ -43,6 +47,7 @@
  * @property {boolean} requiresHandTracking - needs Holistic for grab detection
  * @property {boolean} [requiresPoseTracking] - needs Pose Landmarker for body scoring
  * @property {'catch-rain'|'twerking'} [componentType]
+ * @property {'catch-rain'|'maletin'} [kind] - maletin = juego custom (Operación Maletín)
  * @property {CatchRainGameConfig} [gameConfig] - for catch-rain style games
  * @property {MaletinGameConfig} [maletinConfig] - Operación Maletín
  * @property {string} bannerTitle
