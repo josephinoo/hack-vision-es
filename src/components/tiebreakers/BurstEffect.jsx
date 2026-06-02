@@ -7,7 +7,7 @@ export default function BurstEffect({
   bombToBoomMs,
   burstMs,
 }) {
-  const age = Date.now() - effect.createdAt
+  const age = effect.age ?? 0
   const progress = Math.min(1, age / burstMs)
 
   if (effect.kind === 'bomb') {

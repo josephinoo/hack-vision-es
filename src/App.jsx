@@ -5,6 +5,7 @@ import Countdown from './components/Countdown'
 import ResultOverlay from './components/ResultOverlay'
 import CatchRainOverlay from './components/tiebreakers/CatchRainOverlay'
 import MaletinOverlay from './components/MaletinOverlay'
+import TwerkingChallenge from './components/TwerkingChallenge'
 import GameShell from './components/GameShell'
 import GameHeader, { HeaderButton } from './components/GameHeader'
 import { HeroHands } from './components/decor/FloatingHands'
@@ -98,11 +99,19 @@ function Game({ names, onBack }) {
   const [frozenFrame, setFrozenFrame] = useState(null)
   const [tieBreakerId, setTieBreakerId] = useState(null)
   const [tieBreakerResult, setTieBreakerResult] = useState(null)
+  const [tieBreakersPlayed, setTieBreakersPlayed] = useState(0)
 
+  const nextTieBreakerId =
+    tieBreakersPlayed === 0 ? 'caza-sobres' : 'twerking-challenge'
   const tieBreaker = tieBreakerId ? getTieBreaker(tieBreakerId) : null
   const isCatchRain = Boolean(tieBreaker?.gameConfig)
   const isMaletin = tieBreaker?.kind === 'maletin'
-  const tieBreakerActive = Boolean(tieBreakerId && tieBreaker?.implemented)
+  const isTwerkingTieBreaker = tieBreaker?.componentType === 'twerking'
+  const tieBreakerActive = Boolean(
+    tieBreakerId &&
+      tieBreaker?.implemented &&
+      (isCatchRain || isMaletin || isTwerkingTieBreaker),
+  )
   const catchConfig = tieBreaker?.gameConfig ?? cazaSobresTieBreaker.gameConfig
 
   const captureFrame = useCallback(() => {
@@ -214,6 +223,20 @@ function Game({ names, onBack }) {
     onFinish: handleTieBreakerFinish,
   })
 
+  const getPanelTieScore = (player) => {
+    if (isMaletin) return maletin.scores[player]
+    if (isTwerkingTieBreaker) {
+      return tieBreakerResult?.scores?.[player]?.total ?? 0
+    }
+    return catchScores[player]
+  }
+
+  const tieBreakerScoreLabel = isMaletin
+    ? 'maletines'
+    : isTwerkingTieBreaker
+      ? 'twerk pts'
+      : scoreLabel
+
   const handleNewRound = useCallback(() => {
     setFrozenFrame(null)
     setTieBreakerId(null)
@@ -221,23 +244,27 @@ function Game({ names, onBack }) {
     newRound()
   }, [newRound])
 
-  const handleStartTieBreaker = useCallback(
-    (id) => {
-      const def = getTieBreaker(id)
-      if (!def?.implemented) return
-      if (!def.gameConfig && def.kind !== 'maletin') return
+  const handleStartTieBreaker = useCallback((id) => {
+    const def = getTieBreaker(id)
+    const canRun =
+      def?.gameConfig || def?.kind === 'maletin' || def?.componentType === 'twerking'
+    if (!def?.implemented || !canRun) return
 
-      warmupGameAudio()
+    warmupGameAudio()
 
-      setFrozenFrame(null)
-      setTieBreakerResult(null)
-      if (assignmentRef.current) {
-        playerLockRef.current = createPlayerLock(assignmentRef.current)
-      }
-      setTieBreakerId(id)
-    },
-    [],
-  )
+    setFrozenFrame(null)
+    setTieBreakerResult(null)
+    if (assignmentRef.current) {
+      playerLockRef.current = createPlayerLock(assignmentRef.current)
+    }
+    setTieBreakersPlayed((count) => count + 1)
+    setTieBreakerId(id)
+  }, [])
+
+  const handleResetScores = useCallback(() => {
+    resetScores()
+    setTieBreakersPlayed(0)
+  }, [resetScores])
 
   const handleTieBreakerContinue = useCallback(() => {
     setTieBreakerId(null)
@@ -280,8 +307,6 @@ function Game({ names, onBack }) {
   const p2Detected = Boolean(detection.player2)
   const bothReady = detection.handsStable || bothHandsDetected(detection.assignment)
 
-  const tieScores = isMaletin ? maletin.scores : catchScores
-
   const displayGesture1 = tieBreakerActive
     ? null
     : phase === PHASE.RESULT
@@ -296,7 +321,7 @@ function Game({ names, onBack }) {
   return (
     <GameShell>
       <GameHeader title="Piedra · Papel · Tijera">
-        <HeaderButton onClick={resetScores}>Reiniciar</HeaderButton>
+        <HeaderButton onClick={handleResetScores}>Reiniciar</HeaderButton>
         <HeaderButton onClick={onBack}>Salir</HeaderButton>
       </GameHeader>
 
@@ -322,8 +347,8 @@ function Game({ names, onBack }) {
           score={scores.player1}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
-          tieBreakerScore={tieScores.player1}
-          tieBreakerScoreLabel={isMaletin ? 'maletines' : scoreLabel}
+          tieBreakerScore={getPanelTieScore('player1')}
+          tieBreakerScoreLabel={tieBreakerScoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
 
@@ -405,6 +430,15 @@ function Game({ names, onBack }) {
             onContinue={handleTieBreakerContinue}
           />
 
+          <TwerkingChallenge
+            active={isTwerkingTieBreaker}
+            videoRef={videoRef}
+            player1Name={names.player1}
+            player2Name={names.player2}
+            onFinish={handleTieBreakerFinish}
+            onContinue={handleTieBreakerContinue}
+          />
+
           <Countdown
             visible={phase === PHASE.COUNTDOWN && !tieBreakerActive}
             label={countdownLabel}
@@ -418,6 +452,7 @@ function Game({ names, onBack }) {
             player2Name={names.player2}
             onNewRound={handleNewRound}
             onStartTieBreaker={handleStartTieBreaker}
+            defaultTieBreakerId={nextTieBreakerId}
           />
 
           {tieBreakerActive && isCatchRain && tieStatus === 'playing' && (
@@ -459,8 +494,8 @@ function Game({ names, onBack }) {
           score={scores.player2}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
-          tieBreakerScore={tieScores.player2}
-          tieBreakerScoreLabel={isMaletin ? 'maletines' : scoreLabel}
+          tieBreakerScore={getPanelTieScore('player2')}
+          tieBreakerScoreLabel={tieBreakerScoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
       </main>

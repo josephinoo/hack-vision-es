@@ -77,6 +77,7 @@ export function useHolisticPenalty(
 
   useEffect(() => {
     if (!ready || !enabled) return
+
     const detectLoop = () => {
       const video = videoRef.current
       const pipeline = pipelineRef.current
