@@ -43,6 +43,58 @@ function assignHolisticHandToPlayer(wristXMirrored) {
   return wristXMirrored < 0.5 ? 'player1' : 'player2'
 }
 
+const FINGER_TIPS = [8, 12, 16, 20]
+const FINGER_PIPS = [6, 10, 14, 18]
+
+/**
+ * Puño cerrado: las yemas se pliegan hacia la muñeca (más cerca que su nudillo PIP).
+ * Invariante a escala/espejo (usa distancias a la muñeca).
+ */
+export function isFistClosed(landmarks) {
+  if (!landmarks || landmarks.length < 21) return false
+  const wrist = landmarks[0]
+  if (!wrist) return false
+  let folded = 0
+  for (let i = 0; i < FINGER_TIPS.length; i++) {
+    const tip = landmarks[FINGER_TIPS[i]]
+    const pip = landmarks[FINGER_PIPS[i]]
+    if (!tip || !pip) continue
+    const dTip = Math.hypot(tip.x - wrist.x, tip.y - wrist.y)
+    const dPip = Math.hypot(pip.x - wrist.x, pip.y - wrist.y)
+    if (dTip < dPip) folded++
+  }
+  return folded >= 3
+}
+
+/**
+ * Igual que getPenaltyGrabbers pero SOLO cuenta manos con el puño cerrado.
+ * Así hay que "coger" (cerrar la mano), no basta con rozar con la mano abierta.
+ */
+export function getFistGrabbers(detection) {
+  const grabbers = { player1: [], player2: [] }
+
+  const addPlayer = (player, landmarks) => {
+    if (!landmarks || !isFistClosed(landmarks)) return
+    grabbers[player].push(...getGrabPoints(landmarks, true))
+  }
+
+  addPlayer('player1', detection?.player1?.landmarks)
+  addPlayer('player2', detection?.player2?.landmarks)
+
+  const hol = detection?.holistic
+  for (const landmarks of [hol?.leftHandLandmarks, hol?.rightHandLandmarks].filter(Boolean)) {
+    const wrist = landmarks[0]
+    if (!wrist || !isFistClosed(landmarks)) continue
+    const player = assignHolisticHandToPlayer(1 - wrist.x)
+    const pts = getGrabPoints(landmarks, true)
+    if (grabbers[player].length < pts.length) {
+      grabbers[player] = pts
+    }
+  }
+
+  return grabbers
+}
+
 /**
  * Solo punta del índice por jugador (colisión “tocar” con el dedo).
  */

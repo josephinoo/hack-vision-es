@@ -27,7 +27,7 @@ export default function ResultOverlay({
     emoji = '🤔'
   } else if (isTie) {
     title = '¡Empate!'
-    subtitle = 'Elegid un desempate o seguid jugando'
+    subtitle = 'Operación Maletín en breve — ¡no cogáis el tanga!'
     emoji = '🤝'
   } else if (winner === 'player1') {
     title = `¡${player1Name} gana!`

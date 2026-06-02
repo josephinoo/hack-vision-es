@@ -1,9 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Camera from './components/Camera'
 import PlayerPanel from './components/PlayerPanel'
 import Countdown from './components/Countdown'
 import ResultOverlay from './components/ResultOverlay'
 import CatchRainOverlay from './components/tiebreakers/CatchRainOverlay'
+import MaletinOverlay from './components/MaletinOverlay'
 import GameShell from './components/GameShell'
 import GameHeader, { HeaderButton } from './components/GameHeader'
 import { HeroHands } from './components/decor/FloatingHands'
@@ -11,8 +12,10 @@ import { useRpsDetection } from './hooks/useRpsDetection'
 import { useHolisticPenalty } from './hooks/useHolisticPenalty'
 import { useGameFlow, PHASE } from './hooks/useGameFlow'
 import { useCatchRainGame } from './hooks/useCatchRainGame'
-import { getTieBreaker } from './tiebreakers/registry'
+import { useOperacionMaletin } from './hooks/useOperacionMaletin'
+import { getTieBreaker, DEFAULT_TIE_BREAKER_ID } from './tiebreakers/registry'
 import { cazaSobresTieBreaker } from './tiebreakers/cazaSobres'
+import { DEV_ALWAYS_MALETIN } from './tiebreakers/operacionMaletin'
 import { bothHandsDetected, createPlayerLock } from './utils/assignPlayers'
 import { warmupGameAudio } from './utils/gameSfx'
 
@@ -97,7 +100,9 @@ function Game({ names, onBack }) {
   const [tieBreakerResult, setTieBreakerResult] = useState(null)
 
   const tieBreaker = tieBreakerId ? getTieBreaker(tieBreakerId) : null
-  const tieBreakerActive = Boolean(tieBreaker?.gameConfig)
+  const isCatchRain = Boolean(tieBreaker?.gameConfig)
+  const isMaletin = tieBreaker?.kind === 'maletin'
+  const tieBreakerActive = Boolean(tieBreakerId && tieBreaker?.implemented)
   const catchConfig = tieBreaker?.gameConfig ?? cazaSobresTieBreaker.gameConfig
 
   const captureFrame = useCallback(() => {
@@ -192,9 +197,16 @@ function Game({ names, onBack }) {
     itemSize,
     scoreLabel,
   } = useCatchRainGame({
-    active: tieBreakerActive,
+    active: tieBreakerActive && isCatchRain,
     detection,
     config: catchConfig,
+    onFinish: handleTieBreakerFinish,
+  })
+
+  const maletin = useOperacionMaletin({
+    active: tieBreakerActive && isMaletin,
+    detection,
+    config: tieBreaker?.maletinConfig,
     onFinish: handleTieBreakerFinish,
   })
 
@@ -205,9 +217,11 @@ function Game({ names, onBack }) {
     newRound()
   }
 
-  const handleStartTieBreaker = (id) => {
+  const handleStartTieBreaker = useCallback(
+    (id) => {
     const def = getTieBreaker(id)
-    if (!def?.implemented || !def.gameConfig) return
+    if (!def?.implemented) return
+    if (!def.gameConfig && def.kind !== 'maletin') return
 
     warmupGameAudio()
 
@@ -217,7 +231,9 @@ function Game({ names, onBack }) {
       playerLockRef.current = createPlayerLock(detection.assignment)
     }
     setTieBreakerId(id)
-  }
+  },
+    [detection.assignment],
+  )
 
   const handleTieBreakerContinue = () => {
     setTieBreakerId(null)
@@ -225,11 +241,42 @@ function Game({ names, onBack }) {
     newRound()
   }
 
+  // Rama desempate-maletin: lanzar #3 siempre para probar
+  useEffect(() => {
+    if (!DEV_ALWAYS_MALETIN) return
+    const t = setTimeout(() => handleStartTieBreaker('operacion-maletin'), 1800)
+    return () => clearTimeout(t)
+  }, [handleStartTieBreaker])
+
+  useEffect(() => {
+    if (DEV_ALWAYS_MALETIN) return
+    const isTie =
+      phase === PHASE.RESULT &&
+      roundResult?.winner === 'tie' &&
+      roundResult?.gestures?.player1 &&
+      roundResult?.gestures?.player2
+    if (!isTie || tieBreakerId) return
+    const t = setTimeout(
+      () => handleStartTieBreaker(DEFAULT_TIE_BREAKER_ID),
+      1300,
+    )
+    return () => clearTimeout(t)
+  }, [phase, roundResult, tieBreakerId, handleStartTieBreaker])
+
+  useEffect(() => {
+    if (!DEV_ALWAYS_MALETIN) return
+    if (phase !== PHASE.RESULT || tieBreakerId) return
+    const t = setTimeout(() => handleStartTieBreaker('operacion-maletin'), 900)
+    return () => clearTimeout(t)
+  }, [phase, roundResult, tieBreakerId, handleStartTieBreaker])
+
   const frozen =
     (phase === PHASE.RESULT || phase === PHASE.CAPTURE) && !tieBreakerActive
   const p1Detected = Boolean(detection.player1)
   const p2Detected = Boolean(detection.player2)
   const bothReady = detection.handsStable || bothHandsDetected(detection.assignment)
+
+  const tieScores = isMaletin ? maletin.scores : catchScores
 
   const displayGesture1 = tieBreakerActive
     ? null
@@ -271,8 +318,8 @@ function Game({ names, onBack }) {
           score={scores.player1}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
-          tieBreakerScore={catchScores.player1}
-          tieBreakerScoreLabel={scoreLabel}
+          tieBreakerScore={tieScores.player1}
+          tieBreakerScoreLabel={isMaletin ? 'puntos' : scoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
 
@@ -287,7 +334,7 @@ function Game({ names, onBack }) {
           />
 
           <CatchRainOverlay
-            visible={tieBreakerActive}
+            visible={tieBreakerActive && isCatchRain}
             tieBreaker={tieBreaker}
             status={tieStatus}
             timeLeft={tieTimeLeft}
@@ -298,6 +345,23 @@ function Game({ names, onBack }) {
             bombToBoomMs={bombToBoomMs}
             itemSize={itemSize}
             scoreLabel={scoreLabel}
+            player1Name={names.player1}
+            player2Name={names.player2}
+            finishResult={tieBreakerResult}
+            onContinue={handleTieBreakerContinue}
+          />
+
+          <MaletinOverlay
+            visible={tieBreakerActive && isMaletin}
+            tieBreaker={tieBreaker}
+            status={maletin.status}
+            items={maletin.items}
+            scores={maletin.scores}
+            health={maletin.health}
+            maxHealth={maletin.maxHealth}
+            timeLeft={maletin.timeLeft}
+            briefcaseSize={maletin.briefcaseSize}
+            itemImageSrc={maletin.itemImageSrc}
             player1Name={names.player1}
             player2Name={names.player2}
             finishResult={tieBreakerResult}
@@ -319,9 +383,15 @@ function Game({ names, onBack }) {
             onStartTieBreaker={handleStartTieBreaker}
           />
 
-          {tieBreakerActive && tieStatus === 'playing' && (
+          {tieBreakerActive && isCatchRain && tieStatus === 'playing' && (
             <p className="status-chip status-chip--wait mt-4">
               {tieBreaker?.bannerPlaying}
+            </p>
+          )}
+
+          {DEV_ALWAYS_MALETIN && !tieBreakerActive && phase === PHASE.WAITING && (
+            <p className="status-chip status-chip--ready mt-4">
+              Modo prueba: Operación Maletín en breve…
             </p>
           )}
 
@@ -352,8 +422,8 @@ function Game({ names, onBack }) {
           score={scores.player2}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
-          tieBreakerScore={catchScores.player2}
-          tieBreakerScoreLabel={scoreLabel}
+          tieBreakerScore={tieScores.player2}
+          tieBreakerScoreLabel={isMaletin ? 'puntos' : scoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
       </main>
@@ -361,9 +431,18 @@ function Game({ names, onBack }) {
   )
 }
 
+/** Deeplink: ?game=maletin (o #maletin) salta el setup y arranca el desafío. */
+function getDeepLinkGame() {
+  if (typeof window === 'undefined') return null
+  const q = new URLSearchParams(window.location.search)
+  const g = (q.get('game') || window.location.hash.replace('#', '')).toLowerCase()
+  return g || null
+}
+
 export default function App() {
-  const [started, setStarted] = useState(false)
-  const [names, setNames] = useState({ player1: 'Jugador 1', player2: 'Jugador 2' })
+  const [deepLink] = useState(getDeepLinkGame)
+  const [started, setStarted] = useState(() => deepLink === 'maletin')
+  const [names, setNames] = useState({ player1: 'Ábalos', player2: 'Koldo' })
 
   if (!started) {
     return (
