@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { assignPlayers } from '../utils/assignPlayers'
 import {
   holisticResultToHandFormat,
   holisticResultToVisual,
 } from '../utils/landmarksAdapter'
 import { getHolisticPipeline } from '../utils/visionPipeline'
+
+const HOLISTIC_INTERVAL_MS = 50
 
 function processHolisticFrame(holisticResult, lock) {
   const holisticHands = holisticResultToHandFormat(holisticResult)
@@ -40,6 +42,7 @@ export function useHolisticPenalty(
 ) {
   const pipelineRef = useRef(null)
   const rafRef = useRef(null)
+  const lastProcessAtRef = useRef(0)
   const lastVideoTimeRef = useRef(-1)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(null)
@@ -72,40 +75,45 @@ export function useHolisticPenalty(
     }
   }, [])
 
-  const detectLoop = useCallback(() => {
-    const video = videoRef.current
-    const pipeline = pipelineRef.current
-
-    if (!enabled || !video || !pipeline || video.readyState < 2) {
-      rafRef.current = requestAnimationFrame(detectLoop)
-      return
-    }
-
-    if (video.currentTime !== lastVideoTimeRef.current) {
-      lastVideoTimeRef.current = video.currentTime
-      try {
-        const holisticResult = pipeline.holisticLandmarker.detectForVideo(
-          video,
-          performance.now(),
-        )
-        const lock = playerLockRef?.current ?? null
-        const processed = processHolisticFrame(holisticResult, lock)
-        setDetection(processed)
-      } catch {
-        /* frame skip */
-      }
-    }
-
-    rafRef.current = requestAnimationFrame(detectLoop)
-  }, [videoRef, enabled, playerLockRef])
-
   useEffect(() => {
     if (!ready || !enabled) return
+    const detectLoop = () => {
+      const video = videoRef.current
+      const pipeline = pipelineRef.current
+
+      if (!enabled || !video || !pipeline || video.readyState < 2) {
+        rafRef.current = requestAnimationFrame(detectLoop)
+        return
+      }
+
+      const now = performance.now()
+      if (
+        now - lastProcessAtRef.current >= HOLISTIC_INTERVAL_MS &&
+        video.currentTime !== lastVideoTimeRef.current
+      ) {
+        lastProcessAtRef.current = now
+        lastVideoTimeRef.current = video.currentTime
+        try {
+          const holisticResult = pipeline.holisticLandmarker.detectForVideo(
+            video,
+            now,
+          )
+          const lock = playerLockRef?.current ?? null
+          const processed = processHolisticFrame(holisticResult, lock)
+          setDetection(processed)
+        } catch {
+          /* frame skip */
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(detectLoop)
+    }
+
     rafRef.current = requestAnimationFrame(detectLoop)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [ready, enabled, detectLoop])
+  }, [ready, enabled, videoRef, playerLockRef])
 
   return { ready, error, detection }
 }

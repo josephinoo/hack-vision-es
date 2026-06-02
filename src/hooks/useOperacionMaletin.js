@@ -14,8 +14,10 @@ const DEFAULT_CONFIG = {
   spawnEveryMinMs: 700,
   spawnEveryMaxMs: 1500,
   maxItemsOnScreen: 3,
+  winScore: 3,
 }
 
+const TICK_MS = 50
 let spawnId = 0
 
 // Confinar a la zona visible de la cámara (lejos de bordes)
@@ -34,7 +36,7 @@ const emptyPair = () => ({ player1: 0, player2: 0 })
 
 /**
  * Desempate #3 — supervivencia: maletines suman, señuelos restan y quitan vida.
- * Pierdes si te quedas sin vida; al acabar el tiempo gana quien tenga más puntos.
+ * Primer jugador con winScore maletines gana; señuelos restan maletín y quitan vida.
  */
 export function useOperacionMaletin({ active, detection, config, onFinish }) {
   const cfg = { ...DEFAULT_CONFIG, ...config }
@@ -50,7 +52,9 @@ export function useOperacionMaletin({ active, detection, config, onFinish }) {
   const [winner, setWinner] = useState(null)
 
   const detectionRef = useRef(detection)
-  detectionRef.current = detection
+  useEffect(() => {
+    detectionRef.current = detection
+  }, [detection])
 
   const itemsRef = useRef([])
   const scoresRef = useRef(emptyPair())
@@ -59,6 +63,8 @@ export function useOperacionMaletin({ active, detection, config, onFinish }) {
   const endAtRef = useRef(0)
   const rafRef = useRef(null)
   const finishedRef = useRef(false)
+  const lastTickRef = useRef(0)
+  const timeLeftRef = useRef(Math.ceil(cfg.durationMs / 1000))
 
   const sync = useCallback(() => {
     setItems([...itemsRef.current])
@@ -85,6 +91,8 @@ export function useOperacionMaletin({ active, detection, config, onFinish }) {
     spawnTimerRef.current = null
     rafRef.current = null
     finishedRef.current = false
+    lastTickRef.current = 0
+    timeLeftRef.current = Math.ceil(cfg.durationMs / 1000)
     itemsRef.current = []
     scoresRef.current = emptyPair()
     healthRef.current = { player1: cfg.startHealth, player2: cfg.startHealth }
@@ -121,20 +129,9 @@ export function useOperacionMaletin({ active, detection, config, onFinish }) {
     sync,
   ])
 
-  const scheduleSpawn = useCallback(() => {
-    if (finishedRef.current) return
-    const delay =
-      cfg.spawnEveryMinMs +
-      Math.random() * (cfg.spawnEveryMaxMs - cfg.spawnEveryMinMs)
-    spawnTimerRef.current = setTimeout(() => {
-      spawnItem()
-      scheduleSpawn()
-    }, delay)
-  }, [cfg.spawnEveryMinMs, cfg.spawnEveryMaxMs, spawnItem])
-
   useEffect(() => {
     if (!active) {
-      reset()
+      queueMicrotask(reset)
       return
     }
     finishedRef.current = false
@@ -142,13 +139,33 @@ export function useOperacionMaletin({ active, detection, config, onFinish }) {
     const introT = setTimeout(() => {
       setStatus('playing')
       endAtRef.current = Date.now() + cfg.durationMs
-      scheduleSpawn()
+      timeLeftRef.current = Math.ceil(cfg.durationMs / 1000)
+      setTimeLeft(timeLeftRef.current)
+      const schedule = () => {
+        if (finishedRef.current) return
+        const delay =
+          cfg.spawnEveryMinMs +
+          Math.random() * (cfg.spawnEveryMaxMs - cfg.spawnEveryMinMs)
+        spawnTimerRef.current = setTimeout(() => {
+          spawnItem()
+          schedule()
+        }, delay)
+      }
+      schedule()
     }, cfg.introMs)
     return () => {
       clearTimeout(introT)
       if (spawnTimerRef.current) clearTimeout(spawnTimerRef.current)
     }
-  }, [active, reset, scheduleSpawn, cfg.introMs, cfg.durationMs])
+  }, [
+    active,
+    reset,
+    spawnItem,
+    cfg.introMs,
+    cfg.durationMs,
+    cfg.spawnEveryMinMs,
+    cfg.spawnEveryMaxMs,
+  ])
 
   useEffect(() => {
     if (!active || status !== 'playing') return
@@ -157,9 +174,19 @@ export function useOperacionMaletin({ active, detection, config, onFinish }) {
       if (finishedRef.current) return
       const now = Date.now()
 
+      if (now - lastTickRef.current < TICK_MS) {
+        rafRef.current = requestAnimationFrame(tick)
+        return
+      }
+      lastTickRef.current = now
+
       // tiempo
       const remaining = Math.max(0, endAtRef.current - now)
-      setTimeLeft(Math.ceil(remaining / 1000))
+      const nextTimeLeft = Math.ceil(remaining / 1000)
+      if (nextTimeLeft !== timeLeftRef.current) {
+        timeLeftRef.current = nextTimeLeft
+        setTimeLeft(nextTimeLeft)
+      }
 
       // expira señuelos/maletines no cogidos
       const before = itemsRef.current.length
@@ -177,10 +204,18 @@ export function useOperacionMaletin({ active, detection, config, onFinish }) {
         }
         dirty = true
         if (item.kind === 'briefcase') {
-          scoresRef.current[who] += 1
+          scoresRef.current[who] = Math.min(
+            cfg.winScore,
+            scoresRef.current[who] + 1,
+          )
           playEnvelopeCatch()
+          if (scoresRef.current[who] >= cfg.winScore) {
+            if (dirty) sync()
+            finish(who, { reason: 'race' })
+            return
+          }
         } else {
-          scoresRef.current[who] -= 1
+          scoresRef.current[who] = Math.max(0, scoresRef.current[who] - 1)
           healthRef.current[who] = Math.max(0, healthRef.current[who] - 1)
           playBombExplosion()
         }
@@ -225,6 +260,7 @@ export function useOperacionMaletin({ active, detection, config, onFinish }) {
     scores,
     health,
     maxHealth: cfg.startHealth,
+    winScore: cfg.winScore,
     timeLeft,
     winner,
     briefcaseSize: cfg.itemSize,

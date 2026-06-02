@@ -39,6 +39,12 @@ export function distanceNorm(a, b) {
   return Math.hypot(dx, dy)
 }
 
+function distanceSq(a, b) {
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+  return dx * dx + dy * dy
+}
+
 function assignHolisticHandToPlayer(wristXMirrored) {
   return wristXMirrored < 0.5 ? 'player1' : 'player2'
 }
@@ -75,7 +81,8 @@ export function getFistGrabbers(detection) {
 
   const addPlayer = (player, landmarks) => {
     if (!landmarks || !isFistClosed(landmarks)) return
-    grabbers[player].push(...getGrabPoints(landmarks, true))
+    const point = getGrabPoint(landmarks, true)
+    if (point) grabbers[player].push(point)
   }
 
   addPlayer('player1', detection?.player1?.landmarks)
@@ -86,9 +93,9 @@ export function getFistGrabbers(detection) {
     const wrist = landmarks[0]
     if (!wrist || !isFistClosed(landmarks)) continue
     const player = assignHolisticHandToPlayer(1 - wrist.x)
-    const pts = getGrabPoints(landmarks, true)
-    if (grabbers[player].length < pts.length) {
-      grabbers[player] = pts
+    const point = getGrabPoint(landmarks, true)
+    if (point && grabbers[player].length === 0) {
+      grabbers[player].push(point)
     }
   }
 
@@ -153,8 +160,9 @@ export function getPenaltyGrabbers(detection) {
 
 /** Colisión punto ↔ centro del ítem (coords normalizadas). */
 export function tryGrabItem(grabbers, item, radius) {
+  const radiusSq = radius * radius
   const hit = (points) =>
-    points.length > 0 && points.some((p) => distanceNorm(p, item) < radius)
+    points.length > 0 && points.some((p) => distanceSq(p, item) < radiusSq)
 
   const p1 = hit(grabbers.player1)
   const p2 = hit(grabbers.player2)
@@ -162,8 +170,8 @@ export function tryGrabItem(grabbers, item, radius) {
   if (p1 && !p2) return 'player1'
   if (p2 && !p1) return 'player2'
   if (p1 && p2) {
-    const d1 = Math.min(...grabbers.player1.map((p) => distanceNorm(p, item)))
-    const d2 = Math.min(...grabbers.player2.map((p) => distanceNorm(p, item)))
+    const d1 = Math.min(...grabbers.player1.map((p) => distanceSq(p, item)))
+    const d2 = Math.min(...grabbers.player2.map((p) => distanceSq(p, item)))
     return d1 <= d2 ? 'player1' : 'player2'
   }
   return null

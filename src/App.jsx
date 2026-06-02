@@ -158,6 +158,10 @@ function Game({ names, onBack }) {
         player2: rpsDetection.player2 || holisticDetection.player2,
       }
     : rpsDetection
+  const assignmentRef = useRef(null)
+  useEffect(() => {
+    assignmentRef.current = detection.assignment
+  }, [detection.assignment])
 
   const {
     phase,
@@ -210,36 +214,36 @@ function Game({ names, onBack }) {
     onFinish: handleTieBreakerFinish,
   })
 
-  const handleNewRound = () => {
+  const handleNewRound = useCallback(() => {
     setFrozenFrame(null)
     setTieBreakerId(null)
     setTieBreakerResult(null)
     newRound()
-  }
+  }, [newRound])
 
   const handleStartTieBreaker = useCallback(
     (id) => {
-    const def = getTieBreaker(id)
-    if (!def?.implemented) return
-    if (!def.gameConfig && def.kind !== 'maletin') return
+      const def = getTieBreaker(id)
+      if (!def?.implemented) return
+      if (!def.gameConfig && def.kind !== 'maletin') return
 
-    warmupGameAudio()
+      warmupGameAudio()
 
-    setFrozenFrame(null)
-    setTieBreakerResult(null)
-    if (detection.assignment) {
-      playerLockRef.current = createPlayerLock(detection.assignment)
-    }
-    setTieBreakerId(id)
-  },
-    [detection.assignment],
+      setFrozenFrame(null)
+      setTieBreakerResult(null)
+      if (assignmentRef.current) {
+        playerLockRef.current = createPlayerLock(assignmentRef.current)
+      }
+      setTieBreakerId(id)
+    },
+    [],
   )
 
-  const handleTieBreakerContinue = () => {
+  const handleTieBreakerContinue = useCallback(() => {
     setTieBreakerId(null)
     setTieBreakerResult(null)
     newRound()
-  }
+  }, [newRound])
 
   // Rama desempate-maletin: lanzar #3 siempre para probar
   useEffect(() => {
@@ -319,19 +323,69 @@ function Game({ names, onBack }) {
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
           tieBreakerScore={tieScores.player1}
-          tieBreakerScoreLabel={isMaletin ? 'puntos' : scoreLabel}
+          tieBreakerScoreLabel={isMaletin ? 'maletines' : scoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
 
-        <div className="relative flex w-full max-w-3xl flex-1 flex-col items-center justify-center pt-4">
-          <Camera
-            ref={videoRef}
-            detection={detection}
-            phase={tieBreakerActive ? 'tiebreaker' : phase}
-            frozen={frozen}
-            frozenFrame={frozenFrame}
-            tieBreakerHint={tieBreaker?.bannerPlaying}
-          />
+        <div className="relative flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-2 pt-4">
+          {tieBreakerActive && isMaletin && (
+            <MaletinOverlay
+              part="hud"
+              visible={maletin.status !== 'idle'}
+              tieBreaker={tieBreaker}
+              status={maletin.status}
+              scores={maletin.scores}
+              health={maletin.health}
+              maxHealth={maletin.maxHealth}
+              winScore={maletin.winScore}
+              timeLeft={maletin.timeLeft}
+              itemImageSrc={maletin.itemImageSrc}
+              player1Name={names.player1}
+              player2Name={names.player2}
+            />
+          )}
+
+          <div className="relative w-full">
+            <Camera
+              ref={videoRef}
+              detection={detection}
+              phase={tieBreakerActive ? 'tiebreaker' : phase}
+              frozen={frozen}
+              frozenFrame={frozenFrame}
+              tieBreakerHint={tieBreaker?.bannerPlaying}
+            />
+
+            {tieBreakerActive && isMaletin && (
+              <MaletinOverlay
+                part="stage"
+                visible={
+                  maletin.status === 'intro' || maletin.status === 'playing'
+                }
+                tieBreaker={tieBreaker}
+                status={maletin.status}
+                items={maletin.items}
+                winScore={maletin.winScore}
+                briefcaseSize={maletin.briefcaseSize}
+                itemImageSrc={maletin.itemImageSrc}
+              />
+            )}
+
+            {tieBreakerActive && isMaletin && maletin.status === 'finished' && (
+              <MaletinOverlay
+                part="finish"
+                visible
+                tieBreaker={tieBreaker}
+                status={maletin.status}
+                scores={maletin.scores}
+                winScore={maletin.winScore}
+                itemImageSrc={maletin.itemImageSrc}
+                player1Name={names.player1}
+                player2Name={names.player2}
+                finishResult={tieBreakerResult}
+                onContinue={handleTieBreakerContinue}
+              />
+            )}
+          </div>
 
           <CatchRainOverlay
             visible={tieBreakerActive && isCatchRain}
@@ -345,23 +399,6 @@ function Game({ names, onBack }) {
             bombToBoomMs={bombToBoomMs}
             itemSize={itemSize}
             scoreLabel={scoreLabel}
-            player1Name={names.player1}
-            player2Name={names.player2}
-            finishResult={tieBreakerResult}
-            onContinue={handleTieBreakerContinue}
-          />
-
-          <MaletinOverlay
-            visible={tieBreakerActive && isMaletin}
-            tieBreaker={tieBreaker}
-            status={maletin.status}
-            items={maletin.items}
-            scores={maletin.scores}
-            health={maletin.health}
-            maxHealth={maletin.maxHealth}
-            timeLeft={maletin.timeLeft}
-            briefcaseSize={maletin.briefcaseSize}
-            itemImageSrc={maletin.itemImageSrc}
             player1Name={names.player1}
             player2Name={names.player2}
             finishResult={tieBreakerResult}
@@ -423,7 +460,7 @@ function Game({ names, onBack }) {
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
           tieBreakerScore={tieScores.player2}
-          tieBreakerScoreLabel={isMaletin ? 'puntos' : scoreLabel}
+          tieBreakerScoreLabel={isMaletin ? 'maletines' : scoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
       </main>

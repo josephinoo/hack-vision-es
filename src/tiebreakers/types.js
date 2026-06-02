@@ -28,6 +28,7 @@
  * @property {number} timeoutAfterSpawnMs
  * @property {number} itemSize - px
  * @property {string} itemImageSrc
+ * @property {number} [winScore] - maletines para ganar (p. ej. 3)
  */
 
 /**
