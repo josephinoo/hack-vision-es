@@ -1,0 +1,51 @@
+[project]
+name = "api-vision"
+version = "1.0.0"
+description = "Real-time object detection, segmentation, and pose estimation API powered by LibreYOLO."
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "hack-vision-es" }]
+
+dependencies = [
+    # Core API
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "python-multipart>=0.0.9",
+    # Pydantic settings (for config.py)
+    "pydantic-settings>=2.2.0",
+    # Image processing
+    "pillow>=9.1.0",
+    # Async HTTP client (URL downloads)
+    "httpx>=0.27.0",
+    # WebSocket support
+    "websockets>=12.0",
+    # LibreYOLO (already installed via `uv pip install -e libreyolo/`)
+]
+
+[project.optional-dependencies]
+# Enables the /segment endpoint (RF-DETR segmentation model)
+rfdetr = [
+    "libreyolo[rfdetr] @ file:///${PROJECT_ROOT}/../libreyolo",
+]
+# Development tooling
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27.0",   # AsyncClient for test client
+    "anyio[trio]>=4.0",
+    "ruff>=0.4.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

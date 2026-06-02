@@ -1,0 +1,74 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js (app-vision)
+.next/
+out/
+next-env.d.ts
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ML / vision
+runs/
+weights/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.torchscript
+*.data
+*.cache
+
+# Logs & temp
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.turbo/
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+
+# TypeScript
+*.tsbuildinfo
+
+# Vercel
+.vercel
