@@ -5,9 +5,20 @@ import {
   drawZoneBorders,
 } from '../utils/drawLandmarks'
 import { drawVisionSkeleton } from '../utils/drawVision'
+import { drawPlayerFace, getPoseForPlayer } from '../utils/playerFaceOverlay'
 
 const Camera = forwardRef(function Camera(
-  { detection, phase, frozen, frozenFrame, tieBreakerHint },
+  {
+    detection,
+    phase,
+    frozen,
+    frozenFrame,
+    tieBreakerHint,
+    poseDetection,
+    playerAvatars,
+    playerExpressions,
+    showPlayerFaces = true,
+  },
   ref,
 ) {
   const videoRef = useRef(null)
@@ -70,6 +81,35 @@ const Camera = forwardRef(function Camera(
         drawVisionSkeleton(ctx, detection.holistic, w, h)
       }
 
+      if (showPlayerFaces && playerAvatars && poseDetection) {
+        const expr = playerExpressions ?? { player1: 'neutral', player2: 'neutral' }
+        const p1Pose = getPoseForPlayer(poseDetection, 'player1')
+        const p2Pose = getPoseForPlayer(poseDetection, 'player2')
+
+        if (p1Pose && playerAvatars.player1) {
+          drawPlayerFace(
+            ctx,
+            p1Pose,
+            playerAvatars.player1,
+            expr.player1,
+            w,
+            h,
+            '#4361ee',
+          )
+        }
+        if (p2Pose && playerAvatars.player2) {
+          drawPlayerFace(
+            ctx,
+            p2Pose,
+            playerAvatars.player2,
+            expr.player2,
+            w,
+            h,
+            '#f72585',
+          )
+        }
+      }
+
       if (detection.player1?.landmarks) {
         drawLandmarks(ctx, detection.player1.landmarks, '#4361ee', w, h, 5)
       }
@@ -82,7 +122,7 @@ const Camera = forwardRef(function Camera(
 
     draw()
     return () => cancelAnimationFrame(rafId)
-  }, [detection, frozen, frozenFrame])
+  }, [detection, frozen, frozenFrame, poseDetection, playerAvatars, playerExpressions, showPlayerFaces])
 
   const showGuide = phase === 'waiting'
 

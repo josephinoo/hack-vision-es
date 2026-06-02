@@ -10,12 +10,15 @@ import {
   createOverlayState,
   drawTwerkingOverlay,
 } from '../utils/overlays'
+import { preloadPlayerAvatars } from '../utils/playerFaceOverlay'
 
 type Props = {
   active: boolean
   videoRef: React.RefObject<HTMLVideoElement | null>
   player1Name: string
   player2Name: string
+  player1Avatar?: string
+  player2Avatar?: string
   onFinish?: (result: TwerkResult) => void
   onContinue?: () => void
 }
@@ -79,6 +82,8 @@ export default function TwerkingChallenge({
   videoRef,
   player1Name,
   player2Name,
+  player1Avatar,
+  player2Avatar,
   onFinish,
   onContinue,
 }: Props) {
@@ -93,6 +98,12 @@ export default function TwerkingChallenge({
   const finishedSentRef = useRef(false)
   const frozenFrameRef = useRef<string | null>(null)
   const confetti = useMemo(() => buildConfetti(100), [snapshot.result])
+
+  useEffect(() => {
+    if (active && player1Avatar && player2Avatar) {
+      preloadPlayerAvatars([player1Avatar, player2Avatar])
+    }
+  }, [active, player1Avatar, player2Avatar])
 
   useEffect(() => {
     detectionRef.current = detection
@@ -154,6 +165,9 @@ export default function TwerkingChallenge({
           phase: next.phase,
           now,
           overlayState: overlayStateRef.current,
+          player1Avatar,
+          player2Avatar,
+          result: next.result,
         })
       }
 

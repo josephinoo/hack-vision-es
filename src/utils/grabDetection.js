@@ -39,63 +39,91 @@ export function distanceNorm(a, b) {
   return Math.hypot(dx, dy)
 }
 
-function assignHolisticHandToPlayer(wristXMirrored) {
-  return wristXMirrored < 0.5 ? 'player1' : 'player2'
-}
-
 /**
- * Solo punta del índice por jugador (colisión “tocar” con el dedo).
+ * Asigna manos a J1 (izq.) / J2 (der.) por posición X en pantalla (coords espejadas).
+ * @param {Array<{ tip: { x: number, y: number }, landmarks?: unknown[] }>} hands
  */
-export function getPointerGrabbers(detection) {
+function assignHandsByScreenX(hands) {
   const grabbers = { player1: [], player2: [] }
+  if (hands.length === 0) return grabbers
 
-  const addTip = (player, landmarks) => {
-    const tip = getPointerFingerTip(landmarks, true)
-    if (tip) grabbers[player].push(tip)
-  }
+  const sorted = [...hands].sort((a, b) => a.tip.x - b.tip.x)
 
-  addTip('player1', detection?.player1?.landmarks)
-  addTip('player2', detection?.player2?.landmarks)
-
-  const hol = detection?.holistic
-  for (const landmarks of [hol?.leftHandLandmarks, hol?.rightHandLandmarks].filter(Boolean)) {
-    const wrist = landmarks[0]
-    if (!wrist) continue
-    const player = assignHolisticHandToPlayer(1 - wrist.x)
-    const tip = getPointerFingerTip(landmarks, true)
-    if (tip && grabbers[player].length === 0) {
-      grabbers[player].push(tip)
-    }
+  if (sorted.length >= 2) {
+    grabbers.player1.push(sorted[0].tip)
+    grabbers.player2.push(sorted[sorted.length - 1].tip)
+  } else {
+    const slot = sorted[0].tip.x < 0.5 ? 'player1' : 'player2'
+    grabbers[slot].push(sorted[0].tip)
   }
 
   return grabbers
+}
+
+function collectHolisticHandTips(holistic) {
+  const hands = []
+  for (const landmarks of [
+    holistic?.leftHandLandmarks,
+    holistic?.rightHandLandmarks,
+  ].filter(Boolean)) {
+    const tip = getPointerFingerTip(landmarks, true)
+    if (tip) hands.push({ tip, landmarks })
+  }
+  return hands
+}
+
+/**
+ * Solo punta del índice — prioriza Holistic y posición en pantalla (no etiqueta Left/Right).
+ */
+export function getPointerGrabbers(detection) {
+  const hol = detection?.holistic
+  const fromHolistic = collectHolisticHandTips(hol)
+
+  if (fromHolistic.length > 0) {
+    return assignHandsByScreenX(fromHolistic)
+  }
+
+  const fallback = []
+  const t1 = getPointerFingerTip(detection?.player1?.landmarks, true)
+  const t2 = getPointerFingerTip(detection?.player2?.landmarks, true)
+  if (t1) fallback.push({ tip: t1 })
+  if (t2) fallback.push({ tip: t2 })
+
+  return assignHandsByScreenX(fallback)
 }
 
 /**
  * Puntos de agarre por jugador (mano completa).
  */
 export function getPenaltyGrabbers(detection) {
-  const grabbers = { player1: [], player2: [] }
+  const hol = detection?.holistic
+  const holHands = collectHolisticHandTips(hol)
 
+  if (holHands.length > 0) {
+    const withPoints = holHands.map((h) => ({
+      tip: h.tip,
+      points: getGrabPoints(h.landmarks, true),
+    }))
+    const sorted = [...withPoints].sort((a, b) => a.tip.x - b.tip.x)
+    const grabbers = { player1: [], player2: [] }
+
+    if (sorted.length >= 2) {
+      grabbers.player1.push(...sorted[0].points)
+      grabbers.player2.push(...sorted[sorted.length - 1].points)
+    } else {
+      const slot = sorted[0].tip.x < 0.5 ? 'player1' : 'player2'
+      grabbers[slot].push(...sorted[0].points)
+    }
+    return grabbers
+  }
+
+  const grabbers = { player1: [], player2: [] }
   const addPlayer = (player, landmarks) => {
     if (!landmarks) return
     grabbers[player].push(...getGrabPoints(landmarks, true))
   }
-
   addPlayer('player1', detection?.player1?.landmarks)
   addPlayer('player2', detection?.player2?.landmarks)
-
-  const hol = detection?.holistic
-  for (const landmarks of [hol?.leftHandLandmarks, hol?.rightHandLandmarks].filter(Boolean)) {
-    const wrist = landmarks[0]
-    if (!wrist) continue
-    const player = assignHolisticHandToPlayer(1 - wrist.x)
-    const pts = getGrabPoints(landmarks, true)
-    if (grabbers[player].length < pts.length) {
-      grabbers[player] = pts
-    }
-  }
-
   return grabbers
 }
 

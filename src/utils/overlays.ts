@@ -1,5 +1,9 @@
 import type { AssignedPose } from './poseDetector'
 import type { TwerkPlayerId, TwerkScoreBreakdown } from './twerkScoring'
+import type { TwerkResult } from './gameEngine'
+import { drawPlayerFace, getPoseForPlayer } from './playerFaceOverlay.js'
+
+type FaceExpression = 'neutral' | 'focused' | 'happy' | 'sad' | 'shocked' | 'hype'
 
 export type MoneyParticle = {
   id: number
@@ -36,8 +40,9 @@ function px(point: { x: number; y: number }, width: number, height: number) {
   return { x: point.x * width, y: point.y * height }
 }
 
-function mirroredPx(point: { x: number; y: number }, width: number, height: number) {
-  return { x: (1 - point.x) * width, y: point.y * height }
+/** Mismo criterio que manos y caras: canvas con -scale-x-100, sin doble espejo. */
+function canvasPx(point: { x: number; y: number }, width: number, height: number) {
+  return { x: point.x * width, y: point.y * height }
 }
 
 function drawPose(ctx: CanvasRenderingContext2D, pose: AssignedPose, width: number, height: number, color: string) {
@@ -50,8 +55,8 @@ function drawPose(ctx: CanvasRenderingContext2D, pose: AssignedPose, width: numb
     const from = pose.landmarks[a]
     const to = pose.landmarks[b]
     if (!from || !to) continue
-    const p1 = mirroredPx(from, width, height)
-    const p2 = mirroredPx(to, width, height)
+    const p1 = canvasPx(from, width, height)
+    const p2 = canvasPx(to, width, height)
     ctx.beginPath()
     ctx.moveTo(p1.x, p1.y)
     ctx.lineTo(p2.x, p2.y)
@@ -60,7 +65,7 @@ function drawPose(ctx: CanvasRenderingContext2D, pose: AssignedPose, width: numb
 
   for (const point of pose.landmarks) {
     if (!point || point.visibility != null && point.visibility < 0.35) continue
-    const p = mirroredPx(point, width, height)
+    const p = canvasPx(point, width, height)
     ctx.beginPath()
     ctx.fillStyle = color
     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2)
@@ -70,52 +75,24 @@ function drawPose(ctx: CanvasRenderingContext2D, pose: AssignedPose, width: numb
   ctx.restore()
 }
 
-function drawFaceMask(
-  ctx: CanvasRenderingContext2D,
-  pose: AssignedPose,
-  width: number,
-  height: number,
-  label: string,
-  color: string,
-) {
-  const nose = pose.nose
-  if (!nose) return
-  const p = mirroredPx(nose, width, height)
-  const radius = Math.max(28, width * 0.04)
-
-  ctx.save()
-  ctx.translate(p.x, p.y - radius * 0.25)
-  ctx.fillStyle = '#f1c9a5'
-  ctx.strokeStyle = color
-  ctx.lineWidth = 4
-  ctx.beginPath()
-  ctx.ellipse(0, 0, radius * 0.85, radius, 0, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.stroke()
-
-  ctx.fillStyle = '#111827'
-  ctx.beginPath()
-  ctx.arc(-radius * 0.28, -radius * 0.18, radius * 0.08, 0, Math.PI * 2)
-  ctx.arc(radius * 0.28, -radius * 0.18, radius * 0.08, 0, Math.PI * 2)
-  ctx.fill()
-
-  ctx.strokeStyle = '#111827'
-  ctx.lineWidth = 3
-  ctx.beginPath()
-  ctx.arc(0, radius * 0.14, radius * 0.28, 0.1, Math.PI - 0.1)
-  ctx.stroke()
-
-  ctx.fillStyle = color
-  ctx.beginPath()
-  ctx.ellipse(0, -radius * 0.82, radius * 0.75, radius * 0.2, 0, 0, Math.PI * 2)
-  ctx.fill()
-
-  ctx.fillStyle = '#ffffff'
-  ctx.font = `700 ${Math.max(11, radius * 0.28)}px system-ui`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(label, 0, radius * 1.28)
-  ctx.restore()
+function twerkFaceExpression(
+  player: TwerkPlayerId,
+  score: TwerkScoreBreakdown,
+  phase: 'countdown' | 'playing' | 'finished',
+  scores: Record<TwerkPlayerId, TwerkScoreBreakdown>,
+  result: TwerkResult | null | undefined,
+): FaceExpression {
+  if (phase === 'countdown') return 'focused'
+  if (phase === 'finished' && result) {
+    if (result.winner === 'tie') return 'shocked'
+    if (result.winner === player) return 'happy'
+    if (result.winner) return 'sad'
+  }
+  if (phase === 'playing' && score.combo) return 'hype'
+  const other = scores[player === 'player1' ? 'player2' : 'player1'].total
+  if (score.total > other + 80) return 'hype'
+  if (score.total < other - 80) return 'sad'
+  return 'happy'
 }
 
 function drawDisco(ctx: CanvasRenderingContext2D, width: number, height: number, now: number) {
@@ -157,7 +134,7 @@ function spawnParticles(
       }
     : pose.nose
   if (!hip) return
-  const p = mirroredPx(hip, width, height)
+  const p = canvasPx(hip, width, height)
   for (let i = 0; i < 4; i += 1) {
     state.particles.push({
       id: state.nextParticleId,
@@ -245,6 +222,9 @@ export function drawTwerkingOverlay({
   phase,
   now,
   overlayState,
+  player1Avatar,
+  player2Avatar,
+  result,
 }: {
   ctx: CanvasRenderingContext2D
   width: number
@@ -254,21 +234,45 @@ export function drawTwerkingOverlay({
   phase: 'countdown' | 'playing' | 'finished'
   now: number
   overlayState: TwerkOverlayState
+  player1Avatar?: string
+  player2Avatar?: string
+  result?: TwerkResult | null
 }) {
   ctx.clearRect(0, 0, width, height)
   drawDisco(ctx, width, height, now)
 
-  const player1 = poses.find((pose) => pose.id === 'player1')
-  const player2 = poses.find((pose) => pose.id === 'player2')
+  const poseBundle = { player1: poses.find((p) => p.id === 'player1') ?? null, player2: poses.find((p) => p.id === 'player2') ?? null, poses }
+  const player1 = getPoseForPlayer(poseBundle, 'player1')
+  const player2 = getPoseForPlayer(poseBundle, 'player2')
 
   if (player1) {
+    if (player1Avatar) {
+      drawPlayerFace(
+        ctx,
+        player1,
+        player1Avatar,
+        twerkFaceExpression('player1', scores.player1, phase, scores, result),
+        width,
+        height,
+        '#2563eb',
+      )
+    }
     drawPose(ctx, player1, width, height, 'rgba(96, 165, 250, 0.85)')
-    drawFaceMask(ctx, player1, width, height, 'ABALOS', '#2563eb')
     spawnParticles(overlayState, player1, width, height, scores.player1.combo && phase === 'playing')
   }
   if (player2) {
+    if (player2Avatar) {
+      drawPlayerFace(
+        ctx,
+        player2,
+        player2Avatar,
+        twerkFaceExpression('player2', scores.player2, phase, scores, result),
+        width,
+        height,
+        '#dc2626',
+      )
+    }
     drawPose(ctx, player2, width, height, 'rgba(248, 113, 113, 0.85)')
-    drawFaceMask(ctx, player2, width, height, 'KOLDO', '#dc2626')
     spawnParticles(overlayState, player2, width, height, scores.player2.combo && phase === 'playing')
   }
 

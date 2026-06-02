@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Camera from './components/Camera'
 import PlayerPanel from './components/PlayerPanel'
 import Countdown from './components/Countdown'
@@ -7,7 +7,8 @@ import CatchRainOverlay from './components/tiebreakers/CatchRainOverlay'
 import TwerkingChallenge from './components/TwerkingChallenge'
 import GameShell from './components/GameShell'
 import GameHeader, { HeaderButton } from './components/GameHeader'
-import { HeroHands } from './components/decor/FloatingHands'
+import PlayerSelect from './components/PlayerSelect'
+import { DEFAULT_ROSTER, rosterToGameNames } from './config/players'
 import { useRpsDetection } from './hooks/useRpsDetection'
 import { useHolisticPenalty } from './hooks/useHolisticPenalty'
 import { useGameFlow, PHASE } from './hooks/useGameFlow'
@@ -16,78 +17,12 @@ import { getTieBreaker } from './tiebreakers/registry'
 import { cazaSobresTieBreaker } from './tiebreakers/cazaSobres'
 import { bothHandsDetected, createPlayerLock } from './utils/assignPlayers'
 import { warmupGameAudio } from './utils/gameSfx'
-
-function NameSetup({ onStart }) {
-  const [p1, setP1] = useState('Jugador 1')
-  const [p2, setP2] = useState('Jugador 2')
-
-  return (
-    <GameShell className="items-center justify-center px-4 py-10">
-      <div className="relative z-10 w-full max-w-lg">
-        <HeroHands />
-
-        <div className="card-sticker mt-2 p-8 sm:p-10">
-          <p className="text-center font-display text-sm font-semibold uppercase tracking-[0.2em] text-[var(--coral)]">
-            Salón de juegos
-          </p>
-          <h1 className="mt-2 text-center font-display text-4xl font-bold leading-[1.05] text-[var(--ink)] sm:text-5xl">
-            Piedra, Papel
-            <br />
-            <span className="text-[var(--p1)]">o</span>{' '}
-            <span className="text-[var(--p2)]">Tijera</span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-sm text-center text-base font-semibold leading-relaxed text-[var(--ink-soft)]">
-            Dos jugadores, una cámara. Izquierda contra derecha — ¡sin trampas!
-          </p>
-
-          <div className="mt-8 flex flex-col gap-4">
-            <label className="flex flex-col gap-1.5">
-              <span className="font-display text-sm font-bold text-[var(--p1)]">
-                Jugador 1 · lado izquierdo
-              </span>
-              <input
-                type="text"
-                value={p1}
-                onChange={(e) => setP1(e.target.value)}
-                className="input-play"
-                maxLength={20}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="font-display text-sm font-bold text-[var(--p2)]">
-                Jugador 2 · lado derecho
-              </span>
-              <input
-                type="text"
-                value={p2}
-                onChange={(e) => setP2(e.target.value)}
-                className="input-play input-play--p2"
-                maxLength={20}
-              />
-            </label>
-          </div>
-
-          <button
-            type="button"
-            onClick={() =>
-              onStart({
-                player1: p1.trim() || 'Jugador 1',
-                player2: p2.trim() || 'Jugador 2',
-              })
-            }
-            className="btn-play btn-play--primary mt-8 w-full py-3.5"
-          >
-            ¡A jugar!
-          </button>
-        </div>
-
-        <p className="mt-6 text-center text-sm font-semibold text-[var(--ink-soft)]">
-          Necesitas cámara web · colocaos frente al monitor, uno a cada lado
-        </p>
-      </div>
-    </GameShell>
-  )
-}
+import { usePose } from './hooks/usePose'
+import { useBombFlash } from './hooks/useBombFlash'
+import {
+  preloadPlayerAvatars,
+  resolvePlayerExpressions,
+} from './utils/playerFaceOverlay'
 
 function Game({ names, onBack }) {
   const videoRef = useRef(null)
@@ -122,6 +57,14 @@ function Game({ names, onBack }) {
     setFrozenFrame(canvas)
   }, [])
 
+  const { detection: poseDetection } = usePose(videoRef, {
+    enabled: !isTwerkingTieBreaker,
+  })
+
+  useEffect(() => {
+    preloadPlayerAvatars([names.player1Avatar, names.player2Avatar])
+  }, [names.player1Avatar, names.player2Avatar])
+
   const {
     ready: rpsReady,
     error: rpsError,
@@ -155,8 +98,13 @@ function Game({ names, onBack }) {
   const detection = tieBreakerActive
     ? {
         ...holisticDetection,
-        player1: rpsDetection.player1 || holisticDetection.player1,
-        player2: rpsDetection.player2 || holisticDetection.player2,
+        // Holistic primero: RPS a veces asigna la mano derecha siempre a J1
+        player1: holisticDetection.player1 || rpsDetection.player1,
+        player2: holisticDetection.player2 || rpsDetection.player2,
+        assignment:
+          holisticDetection.assignment?.player1 && holisticDetection.assignment?.player2
+            ? holisticDetection.assignment
+            : rpsDetection.assignment,
       }
     : rpsDetection
 
@@ -203,6 +151,31 @@ function Game({ names, onBack }) {
     config: catchConfig,
     onFinish: handleTieBreakerFinish,
   })
+
+  const bombFlash = useBombFlash(
+    isCatchRainTieBreaker && tieStatus === 'playing',
+    catchScores,
+  )
+
+  const playerExpressions = useMemo(
+    () =>
+      resolvePlayerExpressions({
+        phase: tieBreakerActive ? 'tiebreaker' : phase,
+        roundResult,
+        tieBreakerActive,
+        tieStatus,
+        catchScores,
+        bombFlash,
+      }),
+    [
+      phase,
+      roundResult,
+      tieBreakerActive,
+      tieStatus,
+      catchScores,
+      bombFlash,
+    ],
+  )
 
   const getPanelTieScore = (player) => {
     if (isTwerkingTieBreaker) {
@@ -286,6 +259,7 @@ function Game({ names, onBack }) {
         <PlayerPanel
           side="left"
           name={names.player1}
+          avatar={names.player1Avatar}
           detected={p1Detected}
           gesture={displayGesture1}
           score={scores.player1}
@@ -304,6 +278,13 @@ function Game({ names, onBack }) {
             frozen={frozen}
             frozenFrame={frozenFrame}
             tieBreakerHint={tieBreaker?.bannerPlaying}
+            poseDetection={poseDetection}
+            playerAvatars={{
+              player1: names.player1Avatar,
+              player2: names.player2Avatar,
+            }}
+            playerExpressions={playerExpressions}
+            showPlayerFaces={!isTwerkingTieBreaker}
           />
 
           <CatchRainOverlay
@@ -329,6 +310,8 @@ function Game({ names, onBack }) {
             videoRef={videoRef}
             player1Name={names.player1}
             player2Name={names.player2}
+            player1Avatar={names.player1Avatar}
+            player2Avatar={names.player2Avatar}
             onFinish={handleTieBreakerFinish}
             onContinue={handleTieBreakerContinue}
           />
@@ -377,6 +360,7 @@ function Game({ names, onBack }) {
         <PlayerPanel
           side="right"
           name={names.player2}
+          avatar={names.player2Avatar}
           detected={p2Detected}
           gesture={displayGesture2}
           score={scores.player2}
@@ -393,11 +377,11 @@ function Game({ names, onBack }) {
 
 export default function App() {
   const [started, setStarted] = useState(false)
-  const [names, setNames] = useState({ player1: 'Jugador 1', player2: 'Jugador 2' })
+  const [names, setNames] = useState(() => rosterToGameNames(DEFAULT_ROSTER))
 
   if (!started) {
     return (
-      <NameSetup
+      <PlayerSelect
         onStart={(n) => {
           setNames(n)
           setStarted(true)
@@ -406,5 +390,10 @@ export default function App() {
     )
   }
 
-  return <Game names={names} onBack={() => setStarted(false)} />
+  return (
+    <Game
+      names={names}
+      onBack={() => setStarted(false)}
+    />
+  )
 }
