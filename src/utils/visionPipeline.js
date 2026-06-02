@@ -5,7 +5,7 @@ import {
 } from '@mediapipe/tasks-vision'
 import { loadTaskModel } from './loadTaskModel'
 
-const RPS_TASK_URL = '/models/rock_paper_scissors.task'
+const RPS_TASK_URL = '/models/gesture_recognizer.task'
 const WASM_CDN =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
 
@@ -24,23 +24,20 @@ function getWasmFileset() {
 }
 
 const HAND_TRACKING = {
-  minHandDetectionConfidence: 0.5,
-  minHandPresenceConfidence: 0.5,
-  minTrackingConfidence: 0.5,
+  minHandDetectionConfidence: 0.6,
+  minHandPresenceConfidence: 0.6,
+  minTrackingConfidence: 0.6,
 }
 
-/** Piedra / papel / tijera: solo modelo .task custom */
+/** Piedra / papel / tijera: usa gesture_recognizer por defecto de Google */
 export async function getRpsPipeline() {
   if (!rpsPipelinePromise) {
     rpsPipelinePromise = (async () => {
-      const [vision, modelAssetBuffer] = await Promise.all([
-        getWasmFileset(),
-        loadTaskModel(RPS_TASK_URL),
-      ])
+      const vision = await getWasmFileset()
 
       const gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
         baseOptions: {
-          modelAssetBuffer,
+          modelAssetPath: window.location.origin + RPS_TASK_URL,
           delegate: 'GPU',
         },
         runningMode: 'VIDEO',

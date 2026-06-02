@@ -1,11 +1,16 @@
 const GESTURE_ALIASES = {
   rock: 'rock',
   piedra: 'rock',
+  closed_fist: 'rock',
+  
   paper: 'paper',
   papel: 'paper',
+  open_palm: 'paper',
+  
   scissors: 'scissors',
   tijera: 'scissors',
   tijeras: 'scissors',
+  victory: 'scissors',
 }
 
 export const GESTURE_EMOJI = {
