@@ -4,6 +4,7 @@ import PlayerPanel from './components/PlayerPanel'
 import Countdown from './components/Countdown'
 import ResultOverlay from './components/ResultOverlay'
 import CatchRainOverlay from './components/tiebreakers/CatchRainOverlay'
+import TwerkingChallenge from './components/TwerkingChallenge'
 import GameShell from './components/GameShell'
 import GameHeader, { HeaderButton } from './components/GameHeader'
 import { HeroHands } from './components/decor/FloatingHands'
@@ -95,9 +96,14 @@ function Game({ names, onBack }) {
   const [frozenFrame, setFrozenFrame] = useState(null)
   const [tieBreakerId, setTieBreakerId] = useState(null)
   const [tieBreakerResult, setTieBreakerResult] = useState(null)
+  const [tieBreakersPlayed, setTieBreakersPlayed] = useState(0)
 
+  const nextTieBreakerId =
+    tieBreakersPlayed === 0 ? 'caza-sobres' : 'twerking-challenge'
   const tieBreaker = tieBreakerId ? getTieBreaker(tieBreakerId) : null
-  const tieBreakerActive = Boolean(tieBreaker?.gameConfig)
+  const isCatchRainTieBreaker = Boolean(tieBreaker?.gameConfig)
+  const isTwerkingTieBreaker = tieBreaker?.componentType === 'twerking'
+  const tieBreakerActive = isCatchRainTieBreaker || isTwerkingTieBreaker
   const catchConfig = tieBreaker?.gameConfig ?? cazaSobresTieBreaker.gameConfig
 
   const captureFrame = useCallback(() => {
@@ -192,11 +198,18 @@ function Game({ names, onBack }) {
     itemSize,
     scoreLabel,
   } = useCatchRainGame({
-    active: tieBreakerActive,
+    active: isCatchRainTieBreaker,
     detection,
     config: catchConfig,
     onFinish: handleTieBreakerFinish,
   })
+
+  const getPanelTieScore = (player) => {
+    if (isTwerkingTieBreaker) {
+      return tieBreakerResult?.scores?.[player]?.total ?? 0
+    }
+    return catchScores[player]
+  }
 
   const handleNewRound = () => {
     setFrozenFrame(null)
@@ -207,7 +220,8 @@ function Game({ names, onBack }) {
 
   const handleStartTieBreaker = (id) => {
     const def = getTieBreaker(id)
-    if (!def?.implemented || !def.gameConfig) return
+    const canRun = def?.gameConfig || def?.componentType === 'twerking'
+    if (!def?.implemented || !canRun) return
 
     warmupGameAudio()
 
@@ -216,7 +230,13 @@ function Game({ names, onBack }) {
     if (detection.assignment) {
       playerLockRef.current = createPlayerLock(detection.assignment)
     }
+    setTieBreakersPlayed((count) => count + 1)
     setTieBreakerId(id)
+  }
+
+  const handleResetScores = () => {
+    resetScores()
+    setTieBreakersPlayed(0)
   }
 
   const handleTieBreakerContinue = () => {
@@ -245,7 +265,7 @@ function Game({ names, onBack }) {
   return (
     <GameShell>
       <GameHeader title="Piedra · Papel · Tijera">
-        <HeaderButton onClick={resetScores}>Reiniciar</HeaderButton>
+        <HeaderButton onClick={handleResetScores}>Reiniciar</HeaderButton>
         <HeaderButton onClick={onBack}>Salir</HeaderButton>
       </GameHeader>
 
@@ -271,8 +291,8 @@ function Game({ names, onBack }) {
           score={scores.player1}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
-          tieBreakerScore={catchScores.player1}
-          tieBreakerScoreLabel={scoreLabel}
+          tieBreakerScore={getPanelTieScore('player1')}
+          tieBreakerScoreLabel={isTwerkingTieBreaker ? 'twerk pts' : scoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
 
@@ -287,7 +307,7 @@ function Game({ names, onBack }) {
           />
 
           <CatchRainOverlay
-            visible={tieBreakerActive}
+            visible={isCatchRainTieBreaker}
             tieBreaker={tieBreaker}
             status={tieStatus}
             timeLeft={tieTimeLeft}
@@ -304,6 +324,15 @@ function Game({ names, onBack }) {
             onContinue={handleTieBreakerContinue}
           />
 
+          <TwerkingChallenge
+            active={isTwerkingTieBreaker}
+            videoRef={videoRef}
+            player1Name={names.player1}
+            player2Name={names.player2}
+            onFinish={handleTieBreakerFinish}
+            onContinue={handleTieBreakerContinue}
+          />
+
           <Countdown
             visible={phase === PHASE.COUNTDOWN && !tieBreakerActive}
             label={countdownLabel}
@@ -317,9 +346,10 @@ function Game({ names, onBack }) {
             player2Name={names.player2}
             onNewRound={handleNewRound}
             onStartTieBreaker={handleStartTieBreaker}
+            defaultTieBreakerId={nextTieBreakerId}
           />
 
-          {tieBreakerActive && tieStatus === 'playing' && (
+          {isCatchRainTieBreaker && tieStatus === 'playing' && (
             <p className="status-chip status-chip--wait mt-4">
               {tieBreaker?.bannerPlaying}
             </p>
@@ -352,8 +382,8 @@ function Game({ names, onBack }) {
           score={scores.player2}
           phase={phase === PHASE.RESULT ? 'result' : 'play'}
           tieBreakerMode={tieBreakerActive}
-          tieBreakerScore={catchScores.player2}
-          tieBreakerScoreLabel={scoreLabel}
+          tieBreakerScore={getPanelTieScore('player2')}
+          tieBreakerScoreLabel={isTwerkingTieBreaker ? 'twerk pts' : scoreLabel}
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
       </main>

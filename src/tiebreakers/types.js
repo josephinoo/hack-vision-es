@@ -29,6 +29,8 @@
  * @property {string} pickerEmoji
  * @property {boolean} implemented
  * @property {boolean} requiresHandTracking - needs Holistic for grab detection
+ * @property {boolean} [requiresPoseTracking] - needs Pose Landmarker for body scoring
+ * @property {'catch-rain'|'twerking'} [componentType]
  * @property {CatchRainGameConfig} [gameConfig] - for catch-rain style games
  * @property {string} bannerTitle
  * @property {string} bannerIntro

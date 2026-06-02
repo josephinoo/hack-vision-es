@@ -159,7 +159,7 @@ export function useGameFlow({
     return () => {
       cancelled = true
     }
-  }, [phase, recognizeBurst, onCaptureFrame, clearPlayerLock])
+  }, [paused, phase, recognizeBurst, onCaptureFrame, clearPlayerLock])
 
   const newRound = useCallback(() => {
     clearCountdownTimer()

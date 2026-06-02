@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { assignPlayers } from '../utils/assignPlayers'
 import {
   holisticResultToHandFormat,
@@ -72,40 +72,41 @@ export function useHolisticPenalty(
     }
   }, [])
 
-  const detectLoop = useCallback(() => {
-    const video = videoRef.current
-    const pipeline = pipelineRef.current
-
-    if (!enabled || !video || !pipeline || video.readyState < 2) {
-      rafRef.current = requestAnimationFrame(detectLoop)
-      return
-    }
-
-    if (video.currentTime !== lastVideoTimeRef.current) {
-      lastVideoTimeRef.current = video.currentTime
-      try {
-        const holisticResult = pipeline.holisticLandmarker.detectForVideo(
-          video,
-          performance.now(),
-        )
-        const lock = playerLockRef?.current ?? null
-        const processed = processHolisticFrame(holisticResult, lock)
-        setDetection(processed)
-      } catch {
-        /* frame skip */
-      }
-    }
-
-    rafRef.current = requestAnimationFrame(detectLoop)
-  }, [videoRef, enabled, playerLockRef])
-
   useEffect(() => {
     if (!ready || !enabled) return
+
+    const detectLoop = () => {
+      const video = videoRef.current
+      const pipeline = pipelineRef.current
+
+      if (!enabled || !video || !pipeline || video.readyState < 2) {
+        rafRef.current = requestAnimationFrame(detectLoop)
+        return
+      }
+
+      if (video.currentTime !== lastVideoTimeRef.current) {
+        lastVideoTimeRef.current = video.currentTime
+        try {
+          const holisticResult = pipeline.holisticLandmarker.detectForVideo(
+            video,
+            performance.now(),
+          )
+          const lock = playerLockRef?.current ?? null
+          const processed = processHolisticFrame(holisticResult, lock)
+          setDetection(processed)
+        } catch {
+          /* frame skip */
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(detectLoop)
+    }
+
     rafRef.current = requestAnimationFrame(detectLoop)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [ready, enabled, detectLoop])
+  }, [ready, enabled, playerLockRef, videoRef])
 
   return { ready, error, detection }
 }

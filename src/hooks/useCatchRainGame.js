@@ -103,8 +103,13 @@ export function useCatchRainGame({ active, detection, config, onFinish }) {
   const detectionRef = useRef(detection)
   const configRef = useRef(config)
 
-  detectionRef.current = detection
-  configRef.current = config
+  useEffect(() => {
+    detectionRef.current = detection
+  }, [detection])
+
+  useEffect(() => {
+    configRef.current = config
+  }, [config])
 
   const reset = useCallback(() => {
     itemsRef.current = []
@@ -121,8 +126,8 @@ export function useCatchRainGame({ active, detection, config, onFinish }) {
 
   useEffect(() => {
     if (!active) {
-      reset()
-      return
+      const t = setTimeout(reset, 0)
+      return () => clearTimeout(t)
     }
     const t = setTimeout(() => {
       if (config.enableSfx !== false) warmupGameAudio()
@@ -186,7 +191,12 @@ export function useCatchRainGame({ active, detection, config, onFinish }) {
       itemsRef.current = nextItems
       setScores({ ...scoresRef.current })
       setItems([...itemsRef.current])
-      setBurstEffects([...effectsRef.current])
+      setBurstEffects(
+        effectsRef.current.map((effect) => ({
+          ...effect,
+          age: now - effect.createdAt,
+        })),
+      )
 
       if (remaining <= 0 && !finishedRef.current) {
         finishedRef.current = true

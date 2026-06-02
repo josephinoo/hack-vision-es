@@ -313,3 +313,27 @@ body {
 .animate-catch-sparkle {
   animation: catch-sparkle 0.45s ease-out forwards;
 }
+
+@keyframes twerk-confetti-fall {
+  0% {
+    transform: translate3d(0, -15vh, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(25px, 110vh, 0) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+.twerk-confetti {
+  position: absolute;
+  top: -20px;
+  z-index: 1;
+  width: 10px;
+  height: 18px;
+  border: 2px solid var(--ink);
+  border-radius: 2px;
+  animation-name: twerk-confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}

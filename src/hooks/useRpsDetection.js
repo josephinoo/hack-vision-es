@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/preserve-manual-memoization */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { assignPlayers, bothHandsDetected } from '../utils/assignPlayers'
 import { parseGesture } from '../utils/gameLogic'
@@ -89,46 +90,50 @@ export function useRpsDetection(
     return processRpsFrame(gestureResults, lock)
   }, [videoRef, playerLockRef])
 
-  const detectLoop = useCallback(() => {
-    const video = videoRef.current
-    const pipeline = pipelineRef.current
-
-    if (!enabled || !active || !video || !pipeline || video.readyState < 2) {
-      rafRef.current = requestAnimationFrame(detectLoop)
-      return
-    }
-
-    if (video.currentTime !== lastVideoTimeRef.current) {
-      lastVideoTimeRef.current = video.currentTime
-      try {
-        const processed = runRecognition()
-        if (!processed) return
-
-        const bothNow = bothHandsDetected(processed.assignment)
-        const tracker = stabilityTrackerRef.current
-        tracker.push(bothNow)
-
-        setDetection({
-          ...processed,
-          bothHandsNow: bothNow,
-          handsStable: tracker.isStable(),
-          stabilityRatio: tracker.recentRatio(),
-        })
-      } catch {
-        /* frame skip */
-      }
-    }
-
-    rafRef.current = requestAnimationFrame(detectLoop)
-  }, [videoRef, enabled, active, runRecognition])
-
   useEffect(() => {
     if (!ready || !enabled || !active) return
+
+    const detectLoop = () => {
+      const video = videoRef.current
+      const pipeline = pipelineRef.current
+
+      if (!enabled || !active || !video || !pipeline || video.readyState < 2) {
+        rafRef.current = requestAnimationFrame(detectLoop)
+        return
+      }
+
+      if (video.currentTime !== lastVideoTimeRef.current) {
+        lastVideoTimeRef.current = video.currentTime
+        try {
+          const processed = runRecognition()
+          if (!processed) {
+            rafRef.current = requestAnimationFrame(detectLoop)
+            return
+          }
+
+          const bothNow = bothHandsDetected(processed.assignment)
+          const tracker = stabilityTrackerRef.current
+          tracker.push(bothNow)
+
+          setDetection({
+            ...processed,
+            bothHandsNow: bothNow,
+            handsStable: tracker.isStable(),
+            stabilityRatio: tracker.recentRatio(),
+          })
+        } catch {
+          /* frame skip */
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(detectLoop)
+    }
+
     rafRef.current = requestAnimationFrame(detectLoop)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [ready, enabled, active, detectLoop])
+  }, [ready, enabled, active, runRecognition, videoRef])
 
   const resetStability = useCallback(() => {
     stabilityTrackerRef.current.reset()

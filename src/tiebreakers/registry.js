@@ -1,21 +1,32 @@
 import { createStubTieBreaker } from './createStub'
 import { cazaSobresTieBreaker } from './cazaSobres'
 import { billeteCatchTieBreaker } from './billeteCatch'
+import { twerkingChallengeTieBreaker } from './twerkingChallenge'
 
-/** Ordenados por número de desempate (#1–#4). */
+/** Ordenados por numero de desempate (#1-#4). */
 const TIE_BREAKERS_LIST = [
-  createStubTieBreaker(1, 'Desempate #1', 'Reservado — tu compañero lo implementará aquí.', '1️⃣'),
-  createStubTieBreaker(2, 'Desempate #2', 'Reservado — tu compañero lo implementará aquí.', '2️⃣'),
-  createStubTieBreaker(3, 'Desempate #3', 'Reservado — tu compañero lo implementará aquí.', '3️⃣'),
+  createStubTieBreaker(
+    1,
+    'Desempate #1',
+    'Reservado: tu companero lo implementara aqui.',
+    '1',
+  ),
+  twerkingChallengeTieBreaker,
+  createStubTieBreaker(
+    3,
+    'Desempate #3',
+    'Reservado: tu companero lo implementara aqui.',
+    '3',
+  ),
   cazaSobresTieBreaker,
 ]
 
-/** Extras / legacy, no aparecen en el selector principal salvo que los añadas. */
+/** Extras / legacy, no aparecen en el selector principal salvo que los anadas. */
 export const EXTRA_TIE_BREAKERS = [billeteCatchTieBreaker]
 
 export const TIE_BREAKERS = TIE_BREAKERS_LIST
 
-/** Desempate por defecto al empatar (cambiar aquí o pasar id desde UI). */
+/** Desempate por defecto al empatar. */
 export const DEFAULT_TIE_BREAKER_ID = 'caza-sobres'
 
 const byId = new Map(
@@ -35,9 +46,9 @@ export function getImplementedTieBreakers() {
 }
 
 /**
- * Registrar un desempate nuevo (llamar desde el módulo del compañero).
+ * Registrar un desempate nuevo.
  * @param {import('./types.js').TieBreakerDefinition} definition
- * @param {number} [slot] - índice 0-3 en la lista principal
+ * @param {number} [slot] - indice 0-3 en la lista principal
  */
 export function registerTieBreaker(definition, slot) {
   if (slot != null && slot >= 0 && slot < TIE_BREAKERS_LIST.length) {

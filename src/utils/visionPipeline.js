@@ -3,7 +3,6 @@ import {
   GestureRecognizer,
   HolisticLandmarker,
 } from '@mediapipe/tasks-vision'
-import { loadTaskModel } from './loadTaskModel'
 
 const RPS_TASK_URL = '/models/gesture_recognizer.task'
 const WASM_CDN =
