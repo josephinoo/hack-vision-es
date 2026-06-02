@@ -298,3 +298,18 @@ body {
 .stagger-3 {
   animation-delay: 0.24s;
 }
+
+@keyframes catch-sparkle {
+  0% {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.animate-catch-sparkle {
+  animation: catch-sparkle 0.45s ease-out forwards;
+}

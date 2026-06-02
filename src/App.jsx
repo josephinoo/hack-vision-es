@@ -14,6 +14,7 @@ import { useCatchRainGame } from './hooks/useCatchRainGame'
 import { getTieBreaker } from './tiebreakers/registry'
 import { cazaSobresTieBreaker } from './tiebreakers/cazaSobres'
 import { bothHandsDetected, createPlayerLock } from './utils/assignPlayers'
+import { warmupGameAudio } from './utils/gameSfx'
 
 function NameSetup({ onStart }) {
   const [p1, setP1] = useState('Jugador 1')
@@ -184,6 +185,9 @@ function Game({ names, onBack }) {
     timeLeft: tieTimeLeft,
     scores: catchScores,
     items: catchItems,
+    burstEffects,
+    burstMs,
+    bombToBoomMs,
     status: tieStatus,
     itemSize,
     scoreLabel,
@@ -204,6 +208,8 @@ function Game({ names, onBack }) {
   const handleStartTieBreaker = (id) => {
     const def = getTieBreaker(id)
     if (!def?.implemented || !def.gameConfig) return
+
+    warmupGameAudio()
 
     setFrozenFrame(null)
     setTieBreakerResult(null)
@@ -287,6 +293,9 @@ function Game({ names, onBack }) {
             timeLeft={tieTimeLeft}
             scores={catchScores}
             items={catchItems}
+            burstEffects={burstEffects}
+            burstMs={burstMs}
+            bombToBoomMs={bombToBoomMs}
             itemSize={itemSize}
             scoreLabel={scoreLabel}
             player1Name={names.player1}

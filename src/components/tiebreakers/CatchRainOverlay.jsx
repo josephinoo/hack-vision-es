@@ -1,6 +1,7 @@
+import BurstEffect from './BurstEffect'
+
 /**
  * Overlay genérico para desempates tipo “lluvia + coger con la mano”.
- * @param {{ visible: boolean, tieBreaker: import('../../tiebreakers/types.js').TieBreakerDefinition, status: string, timeLeft: number, scores: object, items: object[], itemSize: number, scoreLabel: string, player1Name: string, player2Name: string, onContinue: () => void, finishResult: object | null }} props
  */
 export default function CatchRainOverlay({
   visible,
@@ -9,6 +10,9 @@ export default function CatchRainOverlay({
   timeLeft,
   scores,
   items,
+  burstEffects = [],
+  burstMs = 520,
+  bombToBoomMs = 75,
   itemSize,
   scoreLabel,
   player1Name,
@@ -116,6 +120,17 @@ export default function CatchRainOverlay({
           </div>
         </div>
       )}
+
+      {status === 'playing' &&
+        burstEffects.map((effect) => (
+          <BurstEffect
+            key={effect.id}
+            effect={effect}
+            itemSize={itemSize}
+            bombToBoomMs={bombToBoomMs}
+            burstMs={burstMs}
+          />
+        ))}
 
       {status === 'playing' &&
         items.map((item) => (

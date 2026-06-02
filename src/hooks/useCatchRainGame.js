@@ -4,8 +4,17 @@ import {
   getPointerGrabbers,
   tryGrabItem,
 } from '../utils/grabDetection'
+import {
+  playBombExplosion,
+  playEnvelopeCatch,
+  warmupGameAudio,
+} from '../utils/gameSfx'
 
 let itemId = 0
+let effectId = 0
+
+const BURST_MS = 520
+const BOMB_TO_BOOM_MS = 75
 
 /**
  * @param {import('../tiebreakers/types.js').CatchRainGameConfig} config
@@ -55,6 +64,27 @@ function applyItemTouch(scores, player, item, config) {
   }
 }
 
+function spawnBurst(x, y, kind) {
+  return {
+    id: ++effectId,
+    x,
+    y,
+    kind,
+    createdAt: Date.now(),
+  }
+}
+
+function handleItemCaught(item, config, effectsRef) {
+  const sfx = config.enableSfx !== false
+  if (item.kind === 'bomb') {
+    if (sfx) void playBombExplosion().catch(() => {})
+    effectsRef.push(spawnBurst(item.x, item.y, 'bomb'))
+  } else {
+    if (sfx) void playEnvelopeCatch().catch(() => {})
+    effectsRef.push(spawnBurst(item.x, item.y, 'sparkle'))
+  }
+}
+
 /**
  * @param {{ active: boolean, detection: object, config: import('../tiebreakers/types.js').CatchRainGameConfig, onFinish?: Function }} opts
  */
@@ -62,8 +92,10 @@ export function useCatchRainGame({ active, detection, config, onFinish }) {
   const [timeLeft, setTimeLeft] = useState(config.durationMs / 1000)
   const [scores, setScores] = useState({ player1: 0, player2: 0 })
   const [items, setItems] = useState([])
+  const [burstEffects, setBurstEffects] = useState([])
   const [status, setStatus] = useState('intro')
   const itemsRef = useRef([])
+  const effectsRef = useRef([])
   const scoresRef = useRef({ player1: 0, player2: 0 })
   const lastSpawnRef = useRef(0)
   const rafRef = useRef(null)
@@ -76,8 +108,10 @@ export function useCatchRainGame({ active, detection, config, onFinish }) {
 
   const reset = useCallback(() => {
     itemsRef.current = []
+    effectsRef.current = []
     scoresRef.current = { player1: 0, player2: 0 }
     setItems([])
+    setBurstEffects([])
     setScores({ player1: 0, player2: 0 })
     setTimeLeft(config.durationMs / 1000)
     setStatus('intro')
@@ -90,9 +124,12 @@ export function useCatchRainGame({ active, detection, config, onFinish }) {
       reset()
       return
     }
-    const t = setTimeout(() => setStatus('playing'), config.introMs)
+    const t = setTimeout(() => {
+      if (config.enableSfx !== false) warmupGameAudio()
+      setStatus('playing')
+    }, config.introMs)
     return () => clearTimeout(t)
-  }, [active, config.introMs, reset])
+  }, [active, config.introMs, config.enableSfx, reset])
 
   useEffect(() => {
     if (!active || status !== 'playing') return
@@ -135,15 +172,21 @@ export function useCatchRainGame({ active, detection, config, onFinish }) {
         const who = tryGrabItem(grabbers, next, cfg.grabRadius)
         if (who) {
           applyItemTouch(scoresRef.current, who, next, cfg)
+          handleItemCaught(next, cfg, effectsRef.current)
           continue
         }
 
         nextItems.push(next)
       }
 
+      effectsRef.current = effectsRef.current.filter(
+        (e) => now - e.createdAt < BURST_MS,
+      )
+
       itemsRef.current = nextItems
       setScores({ ...scoresRef.current })
       setItems([...itemsRef.current])
+      setBurstEffects([...effectsRef.current])
 
       if (remaining <= 0 && !finishedRef.current) {
         finishedRef.current = true
@@ -169,6 +212,9 @@ export function useCatchRainGame({ active, detection, config, onFinish }) {
     timeLeft,
     scores,
     items,
+    burstEffects,
+    burstMs: BURST_MS,
+    bombToBoomMs: BOMB_TO_BOOM_MS,
     status,
     itemSize: config.itemSize,
     scoreLabel: config.scoreLabel,
