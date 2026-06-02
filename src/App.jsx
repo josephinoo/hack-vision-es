@@ -113,6 +113,7 @@ function Game({ names, onBack }) {
     countdownLabel,
     roundResult,
     scores,
+    matchWinner,
     newRound,
     resetScores,
     awardPenaltyWinner,
@@ -323,7 +324,7 @@ function Game({ names, onBack }) {
           />
 
           <ResultOverlay
-            visible={phase === PHASE.RESULT && !tieBreakerActive}
+            visible={phase === PHASE.RESULT && !tieBreakerActive && !matchWinner}
             roundResult={roundResult}
             player1Name={names.player1}
             player2Name={names.player2}
@@ -371,6 +372,28 @@ function Game({ names, onBack }) {
           tieBreakerEmoji={tieBreaker?.pickerEmoji}
         />
       </main>
+
+      {matchWinner && (
+        <div className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-6 text-center">
+          <h2 className="text-5xl sm:text-7xl font-display font-bold text-white mb-8 animate-bounce drop-shadow-xl uppercase tracking-wider">
+            ¡Ganador: {matchWinner === 'player1' ? names.player1 : names.player2}!
+          </h2>
+          <img 
+            src={matchWinner === 'player1' ? '/images/avalos-ganador.webp' : '/images/koldo-ganador.jpeg'}
+            alt="Ganador"
+            className="max-h-[50vh] object-contain rounded-3xl shadow-[0_0_60px_rgba(255,215,0,0.6)] animate-wiggle border-4 border-[#FFD700]"
+          />
+          <button 
+            onClick={() => {
+              handleResetScores()
+              handleNewRound()
+            }}
+            className="mt-12 btn-play btn-play--primary px-10 py-4 text-2xl"
+          >
+            Jugar de nuevo
+          </button>
+        </div>
+      )}
     </GameShell>
   )
 }

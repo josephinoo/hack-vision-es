@@ -26,6 +26,7 @@ export function useGameFlow({
   const [countdownLabel, setCountdownLabel] = useState('')
   const [roundResult, setRoundResult] = useState(null)
   const [scores, setScores] = useState({ player1: 0, player2: 0 })
+  const [matchWinner, setMatchWinner] = useState(null)
   const countdownTimerRef = useRef(null)
   const handsLostSinceRef = useRef(null)
   const stableSinceRef = useRef(null)
@@ -146,9 +147,17 @@ export function useGameFlow({
       })
 
       if (winner === 'player1') {
-        setScores((s) => ({ ...s, player1: s.player1 + 1 }))
+        setScores((s) => {
+          const ns = { ...s, player1: s.player1 + 1 }
+          if (ns.player1 >= 3) setMatchWinner('player1')
+          return ns
+        })
       } else if (winner === 'player2') {
-        setScores((s) => ({ ...s, player2: s.player2 + 1 }))
+        setScores((s) => {
+          const ns = { ...s, player2: s.player2 + 1 }
+          if (ns.player2 >= 3) setMatchWinner('player2')
+          return ns
+        })
       }
 
       clearPlayerLock()
@@ -175,13 +184,22 @@ export function useGameFlow({
 
   const resetScores = useCallback(() => {
     setScores({ player1: 0, player2: 0 })
+    setMatchWinner(null)
   }, [])
 
   const awardPenaltyWinner = useCallback((winner) => {
     if (winner === 'player1') {
-      setScores((s) => ({ ...s, player1: s.player1 + 1 }))
+      setScores((s) => {
+        const ns = { ...s, player1: s.player1 + 1 }
+        if (ns.player1 >= 3) setMatchWinner('player1')
+        return ns
+      })
     } else if (winner === 'player2') {
-      setScores((s) => ({ ...s, player2: s.player2 + 1 }))
+      setScores((s) => {
+        const ns = { ...s, player2: s.player2 + 1 }
+        if (ns.player2 >= 3) setMatchWinner('player2')
+        return ns
+      })
     }
   }, [])
 
@@ -193,6 +211,7 @@ export function useGameFlow({
     countdownLabel,
     roundResult,
     scores,
+    matchWinner,
     newRound,
     resetScores,
     awardPenaltyWinner,
